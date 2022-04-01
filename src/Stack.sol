@@ -6,17 +6,17 @@ type Stack is bytes32;
 type Memory is bytes32;
 
 library MemoryLib {
-	using StackLib for Stack;
-	uint256 constant ptr_mask = 0x1fffffffffffffffffffff;
-	function newMemory(uint32 capacityHint) internal pure returns (Memory m) {
-		assembly ("memory-safe") {
+    using StackLib for Stack;
+    uint256 constant ptr_mask = 0x1fffffffffffffffffffff;
+    function newMemory(uint32 capacityHint) internal pure returns (Memory m) {
+        assembly ("memory-safe") {
             // grab free mem ptr
             m := mload(0x40)
             // update free mem ptr 
             mstore(0x40, add(m, mul(capacityHint, 0x20)))
             m := or(shl(85, capacityHint), m)
         }
-	}
+    }
 
     function loc(Memory self) internal pure returns (uint256 startLoc) {
         assembly ("memory-safe") {
@@ -24,30 +24,30 @@ library MemoryLib {
         }
     }
 
-	function msize_internal(Memory self) internal pure returns (uint256 size) {
-		assembly ("memory-safe") {
-			size := shr(170, self)
-		}
-	}
+    function msize_internal(Memory self) internal pure returns (uint256 size) {
+        assembly ("memory-safe") {
+            size := shr(170, self)
+        }
+    }
 
-	function msize(Memory self, Stack stack) internal view returns (Stack s) {
-		s = stack.push(msize_internal(self), 0);
-	}
+    function msize(Memory self, Stack stack) internal view returns (Stack s) {
+        s = stack.push(msize_internal(self), 0);
+    }
 
-	function mload(Memory self, Stack stack) internal view returns (Stack s) {
-		uint256 offset = stack.pop();
-		require(offset < msize_internal(self), "mem_load");
-		uint256 word;
-		assembly ("memory-safe") {
-			word := mload(add(and(self, ptr_mask), offset))
-		}
-		s = stack.push(word, 0);
-	}
+    function mload(Memory self, Stack stack) internal view returns (Stack s) {
+        uint256 offset = stack.pop();
+        require(offset < msize_internal(self), "mem_load");
+        uint256 word;
+        assembly ("memory-safe") {
+            word := mload(add(and(self, ptr_mask), offset))
+        }
+        s = stack.push(word, 0);
+    }
 
-	function mstore(Memory self, Stack stack) internal view returns (Memory ret) {
-		uint256 offset = stack.pop();
-		uint256 elem = stack.pop();
-		assembly ("memory-safe") {
+    function mstore(Memory self, Stack stack) internal view returns (Memory ret) {
+        uint256 offset = stack.pop();
+        uint256 elem = stack.pop();
+        assembly ("memory-safe") {
             // set the return ptr
             ret := self
             // check if offset > capacity (meaning no more preallocated space)
@@ -114,11 +114,11 @@ library MemoryLib {
             }
         }
         return ret;
-	}
+    }
 }
 
 library StackLib {
-	function newStack(uint16 capacityHint) internal pure returns (Stack s) {
+    function newStack(uint16 capacityHint) internal pure returns (Stack s) {
         assembly ("memory-safe") {
             // grab free mem ptr
             s := mload(0x40)
@@ -265,81 +265,81 @@ library StackLib {
     }
 
     function pop(Stack self) internal pure returns (uint256 ret) {
-    	assembly ("memory-safe") {
-    		// we only add one to get last element
-    		let last := add(self, mul(add(0x01, mload(self)), 0x20))
-    		ret := mload(last)
-    		mstore(last, 0x00)
-    		mstore(self, sub(mload(self), 0x01))
-    	}
+        assembly ("memory-safe") {
+            // we only add one to get last element
+            let last := add(self, mul(add(0x01, mload(self)), 0x20))
+            ret := mload(last)
+            mstore(last, 0x00)
+            mstore(self, sub(mload(self), 0x01))
+        }
     }
 
     function swap(Stack self, uint8 index) internal pure {
-    	assembly ("memory-safe") {
-			let last := add(self, mul(add(0x01, mload(self)), 0x20))
-			let to_swap := sub(last, mul(index, 0x20))
-    		let last_val := mload(last)
-    		let swap_val := mload(to_swap)
-    		mstore(last, to_swap)
-    		mstore(swap_val, last)
-    	}
+        assembly ("memory-safe") {
+            let last := add(self, mul(add(0x01, mload(self)), 0x20))
+            let to_swap := sub(last, mul(index, 0x20))
+            let last_val := mload(last)
+            let swap_val := mload(to_swap)
+            mstore(last, to_swap)
+            mstore(swap_val, last)
+        }
     }
 
     
 
     function dup(Stack self, uint8 index) internal view returns (Stack s) {
-    	uint256 val;
-		assembly ("memory-safe") {
-			val := mload(add(self, mul(add(0x01, mload(self)), 0x20)))
-    	}
+        uint256 val;
+        assembly ("memory-safe") {
+            val := mload(add(self, mul(add(0x01, mload(self)), 0x20)))
+        }
 
-    	s = push(self, val, 0);
+        s = push(self, val, 0);
     }
 }
 
 library MathOps {
-	using StackLib for Stack;
-	function add(Stack self) internal pure {
-		uint256 a = self.pop();
-		uint256 b = self.pop();
-		self.unsafe_push(a + b);
-	}
+    using StackLib for Stack;
+    function add(Stack self) internal pure {
+        uint256 a = self.pop();
+        uint256 b = self.pop();
+        self.unsafe_push(a + b);
+    }
 
-	function mul(Stack self) internal pure {
-		uint256 a = self.pop();
-		uint256 b = self.pop();
-		self.unsafe_push(a * b);
-	}
+    function mul(Stack self) internal pure {
+        uint256 a = self.pop();
+        uint256 b = self.pop();
+        self.unsafe_push(a * b);
+    }
 
-	function sub(Stack self) internal pure {
-		uint256 a = self.pop();
-		uint256 b = self.pop();
-		self.unsafe_push(a - b);
-	}
+    function sub(Stack self) internal pure {
+        uint256 a = self.pop();
+        uint256 b = self.pop();
+        self.unsafe_push(a - b);
+    }
 
-	function div(Stack self) internal pure {
-		uint256 a = self.pop();
-		uint256 b = self.pop();
-		self.unsafe_push(a / b);
-	}
+    function div(Stack self) internal pure {
+        uint256 a = self.pop();
+        uint256 b = self.pop();
+        self.unsafe_push(a / b);
+    }
 
-	function sdiv(Stack self) internal pure {
-		int256 a = int256(self.pop());
-		int256 b = int256(self.pop());
-		self.unsafe_push(uint256(a / b));
-	}
+    function sdiv(Stack self) internal pure {
+        int256 a = int256(self.pop());
+        int256 b = int256(self.pop());
+        self.unsafe_push(uint256(a / b));
+    }
 
-	function mod(Stack self) internal pure {
-		uint256 a = self.pop();
-		uint256 b = self.pop();
-		self.unsafe_push(a % b);
-	}
+    function mod(Stack self) internal pure {
+        uint256 a = self.pop();
+        uint256 b = self.pop();
+        self.unsafe_push(a % b);
+    }
 
-	function smod(Stack self) internal pure {
-		int256 a = int256(self.pop());
-		int256 b = int256(self.pop());
-		self.unsafe_push(uint256(a % b));
-	}
+    function smod(Stack self) internal pure {
+        int256 a = int256(self.pop());
+        int256 b = int256(self.pop());
+        self.unsafe_push(uint256(a % b));
+    }
 
     function _addmod(Stack self) internal pure {
         uint256 a = self.pop();
@@ -361,60 +361,60 @@ library MathOps {
         self.unsafe_push(a**exponent);
     }
 
-	function lt(Stack self) internal pure {
-		uint256 a = self.pop();
-		uint256 b = self.pop();
-		bool c = a < b;
-		uint256 d;
-		assembly ("memory-safe") {
-			d := c
-		}
-		self.unsafe_push(d);
-	}
+    function lt(Stack self) internal pure {
+        uint256 a = self.pop();
+        uint256 b = self.pop();
+        bool c = a < b;
+        uint256 d;
+        assembly ("memory-safe") {
+            d := c
+        }
+        self.unsafe_push(d);
+    }
 
-	function gt(Stack self) internal pure {
-		uint256 a = self.pop();
-		uint256 b = self.pop();
-		bool c = a > b;
-		uint256 d;
-		assembly ("memory-safe") {
-			d := c
-		}
-		self.unsafe_push(d);
-	}
+    function gt(Stack self) internal pure {
+        uint256 a = self.pop();
+        uint256 b = self.pop();
+        bool c = a > b;
+        uint256 d;
+        assembly ("memory-safe") {
+            d := c
+        }
+        self.unsafe_push(d);
+    }
 
-	function slt(Stack self) internal pure {
-		int256 a = int256(self.pop());
-		int256 b = int256(self.pop());
-		bool c = a < b;
-		uint256 d;
-		assembly ("memory-safe") {
-			d := c
-		}
-		self.unsafe_push(d);
-	}
+    function slt(Stack self) internal pure {
+        int256 a = int256(self.pop());
+        int256 b = int256(self.pop());
+        bool c = a < b;
+        uint256 d;
+        assembly ("memory-safe") {
+            d := c
+        }
+        self.unsafe_push(d);
+    }
 
-	function sgt(Stack self) internal pure {
-		int256 a = int256(self.pop());
-		int256 b = int256(self.pop());
-		bool c = a > b;
-		uint256 d;
-		assembly ("memory-safe") {
-			d := c
-		}
-		self.unsafe_push(d);
-	}
+    function sgt(Stack self) internal pure {
+        int256 a = int256(self.pop());
+        int256 b = int256(self.pop());
+        bool c = a > b;
+        uint256 d;
+        assembly ("memory-safe") {
+            d := c
+        }
+        self.unsafe_push(d);
+    }
 
-	function eq(Stack self) internal pure {
-		uint256 a = self.pop();
-		uint256 b = self.pop();
-		bool c = a == b;
-		uint256 d;
-		assembly ("memory-safe") {
-			d := c
-		}
-		self.unsafe_push(d);
-	}
+    function eq(Stack self) internal pure {
+        uint256 a = self.pop();
+        uint256 b = self.pop();
+        bool c = a == b;
+        uint256 d;
+        assembly ("memory-safe") {
+            d := c
+        }
+        self.unsafe_push(d);
+    }
 
     function iszero(Stack self) internal pure {
         uint256 a = self.pop();
