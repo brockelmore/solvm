@@ -21,17 +21,17 @@ library EvmLib {
             mstore(ops, 256)
         }
 
-        ops.unsafe_set(1, intoStackOpPtr(MathOps.add));
-        ops.unsafe_set(2, intoStackOpPtr(MathOps.mul));
-        ops.unsafe_set(3, intoStackOpPtr(MathOps.sub));
-        ops.unsafe_set(4, intoStackOpPtr(MathOps.div));
-        ops.unsafe_set(5, intoStackOpPtr(MathOps.sdiv));
-        ops.unsafe_set(6, intoStackOpPtr(MathOps.mod));
-        ops.unsafe_set(7, intoStackOpPtr(MathOps.smod));
-        ops.unsafe_set(8, intoStackOpPtr(MathOps._addmod));
-        ops.unsafe_set(9, intoStackOpPtr(MathOps._mulmod));
+        ops.unsafe_set(0x01, intoStackOpPtr(MathOps.add));
+        ops.unsafe_set(0x02, intoStackOpPtr(MathOps.mul));
+        ops.unsafe_set(0x03, intoStackOpPtr(MathOps.sub));
+        ops.unsafe_set(0x04, intoStackOpPtr(MathOps.div));
+        ops.unsafe_set(0x05, intoStackOpPtr(MathOps.sdiv));
+        ops.unsafe_set(0x06, intoStackOpPtr(MathOps.mod));
+        ops.unsafe_set(0x07, intoStackOpPtr(MathOps.smod));
+        ops.unsafe_set(0x08, intoStackOpPtr(MathOps._addmod));
+        ops.unsafe_set(0x09, intoStackOpPtr(MathOps._mulmod));
         ops.unsafe_set(0x0a, intoStackOpPtr(MathOps._exp));
-        // ops.unsafe_set(0x0b, intoStackOpPtr(MathOps.add));
+        // ops.unsafe_set(0x0b, intoStackOpPtr(MathOps.signextend));
         ops.unsafe_set(0x10, intoStackOpPtr(MathOps.lt));
         ops.unsafe_set(0x11, intoStackOpPtr(MathOps.gt));
         ops.unsafe_set(0x12, intoStackOpPtr(MathOps.slt));
