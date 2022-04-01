@@ -45,7 +45,7 @@ library EvmLib {
         ops.unsafe_set(0x18, intoStackOpPtr(BinOps.xor));
         ops.unsafe_set(0x19, intoStackOpPtr(BinOps.not));
 
-        // only 1 push op
+        // only 1 push op, handle different ones in the push function
         ops.unsafe_set(0x60, intoPushPtr(push));
 
         // stack capacity unlikely to surpass 32 words
