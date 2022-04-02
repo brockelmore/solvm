@@ -115,6 +115,14 @@ library MemoryLib {
         }
         return ret;
     }
+
+    function sha3(Memory self, uint256 offset, uint256 size) internal pure returns (bytes32) {
+        assembly ("memory-safe") {
+            let startLoc := and(ptr_mask, self)
+            let off := add(startLoc, offset)
+            keccak256(off, size)
+        }
+    }
 }
 
 library StackLib {
@@ -445,6 +453,35 @@ library BinOps {
     function not(Stack self) internal pure {
         uint256 a = self.pop();
         self.unsafe_push(~a);
+    }
+
+    function shl(Stack self) internal pure {
+        uint256 shift = self.pop();
+        uint256 value = self.pop();
+        self.unsafe_push(value << shift);
+    }
+
+    function shr(Stack self) internal pure {
+        uint256 shift = self.pop();
+        uint256 value = self.pop();
+        self.unsafe_push(value >> shift);
+    }
+
+    function sar(Stack self) internal pure {
+        uint256 shift = self.pop();
+        int256 value = int256(self.pop());
+        self.unsafe_push(uint256(value >> shift));
+    }
+}
+
+library Builtins {
+    using StackLib for Stack;
+    using MemoryLib for Memory;
+    function sha3(Stack self, Memory mem) internal pure {
+        uint256 offset = self.pop();
+        uint256 value = self.pop();
+        bytes32 hash = mem.sha3(offset, value);
+        self.unsafe_push(hash);
     }
 }
 

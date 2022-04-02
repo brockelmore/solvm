@@ -10,9 +10,12 @@ library EvmLib {
     using StackLib for Stack;
     using MathOps for Stack;
     using BinOps for Stack;
+    using Builtins for Stack;
     using ControlFlow for Stack;
+    
     using MemoryLib for Memory;
     using ArrayLib for Array;
+
 
     function evaluate(Evm self, bytes memory bytecode) internal view returns (bool success, bytes memory ret) {
         Array ops = ArrayLib.newArray(256);
@@ -44,6 +47,12 @@ library EvmLib {
         ops.unsafe_set(0x17, intoStackOpPtr(BinOps.or));
         ops.unsafe_set(0x18, intoStackOpPtr(BinOps.xor));
         ops.unsafe_set(0x19, intoStackOpPtr(BinOps.not));
+        // ops.unsafe_set(0x1a, intoStackOpPtr(BinOps.byte));
+        ops.unsafe_set(0x1b, intoStackOpPtr(BinOps.not));
+        ops.unsafe_set(0x1c, intoStackOpPtr(BinOps.not));
+        ops.unsafe_set(0x1d, intoStackOpPtr(BinOps.not));
+
+        ops.unsafe_set(0x20, intoStackOpPtr(Builtins.sha3));
 
         // only 1 push op, handle different ones in the push function
         ops.unsafe_set(0x60, intoPushPtr(push));
