@@ -12,39 +12,38 @@ contract EvmTest is DSTest {
 
     function setUp() public {}
 
-    function testPush() public {
+    function testPush() public view {
         Evm evm;
         evm.evaluate(hex"6001");
     }
 
-    function testPop() public {
+    function testPop() public view {
         Evm evm;
         evm.evaluate(hex"600150");
     }
 
-    function testAdd() public {
+    function testAdd() public view {
         Evm evm;
         evm.evaluate(hex"6001600101");
     }
 
     function testAddMany() public {
         Evm evm;
-        evm.evaluate(hex"6001600101600101600101600101600101600101600101600101600101600101600101600101600101600101600101600101600101600101600101600101600101600101600101600101600101600101600101600101600101600101600101600101600101600101600101600101600101600101600101600101600101600101600101600101600101600101600101600101600101600101600101");
-    }
-
-    function testManual() public {
-        uint256 j = 1;
-        for (uint256 i; i < 500; i++) {
-            j += 1;
-        }
+        (bool succ, bytes memory ret) = evm.evaluate(hex"600160010160010160010160205260206000F3");
+        (uint256 r) = abi.decode(ret, (uint256));
+        assertTrue(succ);
+        assertEq(r, 4);
     }
 
     function testMul() public {
         Evm evm;
-        evm.evaluate(hex"6001600302");
+        (bool succ, bytes memory ret) = evm.evaluate(hex"600160030260205260206000F3");
+        (uint256 r) = abi.decode(ret, (uint256));
+        assertTrue(succ);
+        assertEq(r, 3);
     }
 
-    function testMSTORE() public {
+    function testMSTORE() public view {
         Evm evm;
         evm.evaluate(hex"6001600352");
     }
@@ -52,6 +51,9 @@ contract EvmTest is DSTest {
     function testRet() public {
         Evm evm;
         (bool succ, bytes memory ret) = evm.evaluate(hex"600160205260206000F3");
+        (uint256 r) = abi.decode(ret, (uint256));
+        assertTrue(succ);
+        assertEq(r, 1);
         emit log_named_bytes("ret", ret);
     }
 }

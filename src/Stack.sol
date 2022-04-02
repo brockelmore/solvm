@@ -34,7 +34,7 @@ library MemoryLib {
         s = stack.push(msize_internal(self), 0);
     }
 
-    function mload(Memory self, Stack stack) internal view returns (Stack s) {
+    function mload(Memory self, Stack stack) internal view returns (Memory ret, Stack s) {
         uint256 offset = stack.pop();
         require(offset < msize_internal(self), "mem_load");
         uint256 word;
@@ -42,11 +42,13 @@ library MemoryLib {
             word := mload(add(and(self, ptr_mask), offset))
         }
         s = stack.push(word, 0);
+        ret = self;
     }
 
-    function mstore(Memory self, Stack stack) internal view returns (Memory ret) {
+    function mstore(Memory self, Stack stack) internal view returns (Memory ret, Stack s) {
         uint256 offset = stack.pop();
         uint256 elem = stack.pop();
+        s = stack;
         assembly ("memory-safe") {
             // set the return ptr
             ret := self
@@ -113,14 +115,13 @@ library MemoryLib {
                 )
             }
         }
-        return ret;
     }
 
-    function sha3(Memory self, uint256 offset, uint256 size) internal pure returns (bytes32) {
+    function _sha3(Memory self, uint256 offset, uint256 size) internal pure returns (uint256 ret) {
         assembly ("memory-safe") {
             let startLoc := and(ptr_mask, self)
             let off := add(startLoc, offset)
-            keccak256(off, size)
+            ret := keccak256(off, size)
         }
     }
 }
@@ -282,7 +283,16 @@ library StackLib {
         }
     }
 
-    function swap(Stack self, uint8 index) internal pure {
+    function _pop(Stack self) internal pure {
+        assembly ("memory-safe") {
+            // we only add one to get last element
+            let last := add(self, mul(add(0x01, mload(self)), 0x20))
+            mstore(last, 0x00)
+            mstore(self, sub(mload(self), 0x01))
+        }
+    }
+
+    function swap(Stack self, uint256 index) internal pure {
         assembly ("memory-safe") {
             let last := add(self, mul(add(0x01, mload(self)), 0x20))
             let to_swap := sub(last, mul(index, 0x20))
@@ -295,10 +305,12 @@ library StackLib {
 
     
 
-    function dup(Stack self, uint8 index) internal view returns (Stack s) {
+    function dup(Stack self, uint256 index) internal view returns (Stack s) {
         uint256 val;
         assembly ("memory-safe") {
-            val := mload(add(self, mul(add(0x01, mload(self)), 0x20)))
+            let last := add(self, mul(add(0x01, mload(self)), 0x20))
+            let to_dup := sub(last, mul(index, 0x20))
+            val := mload(to_dup)
         }
 
         s = push(self, val, 0);
@@ -428,10 +440,21 @@ library MathOps {
         uint256 a = self.pop();
         self.unsafe_push(a == 0 ? 1 : 0);
     }
+
+    function signextend(Stack self) internal pure {
+        uint256 b = self.pop();
+        uint256 x = self.pop();
+        uint256 c;
+        assembly ("memory-safe") {
+            c := signextend(b, x)
+        }
+        self.unsafe_push(c);
+    }
 }
 
 library BinOps {
     using StackLib for Stack;
+
     function and(Stack self) internal pure {
         uint256 a = self.pop();
         uint256 b = self.pop();
@@ -453,6 +476,16 @@ library BinOps {
     function not(Stack self) internal pure {
         uint256 a = self.pop();
         self.unsafe_push(~a);
+    }
+
+    function _byte(Stack self) internal pure {
+        uint256 i = self.pop();
+        uint256 x = self.pop();
+        uint256 c;
+        assembly ("memory-safe") {
+            c := byte(i, x)
+        }
+        self.unsafe_push(c);
     }
 
     function shl(Stack self) internal pure {
@@ -477,10 +510,10 @@ library BinOps {
 library Builtins {
     using StackLib for Stack;
     using MemoryLib for Memory;
-    function sha3(Stack self, Memory mem) internal pure {
+    function _sha3(Stack self, Memory mem) internal pure {
         uint256 offset = self.pop();
         uint256 value = self.pop();
-        bytes32 hash = mem.sha3(offset, value);
+        uint256 hash = mem._sha3(offset, value);
         self.unsafe_push(hash);
     }
 }

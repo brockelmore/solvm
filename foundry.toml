@@ -2,6 +2,6 @@
 src = 'src'
 out = 'out'
 libs = ['lib']
-optimizer_runs = 1000000
+optimizer_runs = 10000000
 viaIR = true
 # See more config options https://github.com/gakonst/foundry/tree/master/config
