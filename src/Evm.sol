@@ -115,7 +115,7 @@ library EvmLib {
                 stack = intoDupOp(ops.unsafe_get(0x80))(stack, index);
             } else if (op >= 0x90 && op <= 0x9F) {
                 uint256 index = op - 0x8F;
-                stack = intoSwapOp(ops.unsafe_get(0x90))(stack, index);
+                intoSwapOp(ops.unsafe_get(0x90))(stack, index);
             } else if (op == 0xF3) {
                 ret = stack._return(mem);
                 break;
