@@ -17,3 +17,20 @@ A bunch of opcodes haven't been implemented.
 Also bugs. Probably many bugs.
 
 And gas. There are large one-time gas costs, that get amortized with more ops (but not a ton).
+
+
+## Example
+```solidity
+
+contract EvmTest is DSTest {
+	function testMul() public {
+        Evm evm;
+        // pass in raw bytecode and it evaluates it
+        // does 1 * 3 and returns it
+        (bool succ, bytes memory ret) = evm.evaluate(hex"600160030260205260206000F3");
+        (uint256 r) = abi.decode(ret, (uint256));
+        assertTrue(succ);
+        assertEq(r, 3);
+    }
+}
+```
