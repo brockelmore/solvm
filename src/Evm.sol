@@ -125,10 +125,10 @@ library EvmLib {
         EvmContext memory ctx = context(self);
 
         // stack capacity unlikely to surpass 32 words
-        Stack stack = StackLib.newStack(10);
+        Stack stack = StackLib.newStack(32);
         
         // creates a storage map
-        Storage store;// = StorageLib.newStorage(10);
+        Storage store = StorageLib.newStorage(10);
 
         // mem capacity unlikely to surpass 32 words, but likely not a big deal if it does
         // (assuming no stack moves)
