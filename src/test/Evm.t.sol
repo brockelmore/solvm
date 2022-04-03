@@ -31,7 +31,7 @@ contract EvmTest is DSTest {
 
     function testAddMany() public {
         Evm evm;
-        (bool succ, bytes memory ret) = evm.evaluate(hex"600160010160010160010160205260206000F3");
+        (bool succ, bytes memory ret) = evm.evaluate(hex"600160010160010160010160005260206000F3");
         (uint256 r) = abi.decode(ret, (uint256));
         assertTrue(succ);
         assertEq(r, 4);
@@ -39,7 +39,7 @@ contract EvmTest is DSTest {
 
     function testMul() public {
         Evm evm;
-        (bool succ, bytes memory ret) = evm.evaluate(hex"600160030260205260206000F3");
+        (bool succ, bytes memory ret) = evm.evaluate(hex"600160030260005260206000F3");
         (uint256 r) = abi.decode(ret, (uint256));
         assertTrue(succ);
         assertEq(r, 3);
@@ -52,7 +52,7 @@ contract EvmTest is DSTest {
 
     function testRet() public {
         Evm evm;
-        (bool succ, bytes memory ret) = evm.evaluate(hex"600160205260206000F3");
+        (bool succ, bytes memory ret) = evm.evaluate(hex"600160005260206000F3");
         (uint256 r) = abi.decode(ret, (uint256));
         assertTrue(succ);
         assertEq(r, 1);
@@ -92,47 +92,48 @@ contract EvmTest is DSTest {
 
         Evm evm = EvmLib.newEvm(ctx);
 
-        bytes memory org = "32600052";
-        bytes memory calll = "33602052";
-        bytes memory exec = "30604052";
-        bytes memory cv = "34606052";
-        bytes memory cb = "41608052";
-        bytes memory ts = "4261010052";
-        bytes memory nm = "4361012052";
-        bytes memory gl = "4561014052";
-        bytes memory df = "4461016052";
-        bytes memory ci = "4661018052";
-        bytes memory bf = "4861020052";
-        bytes memory retur = "6102206000F3";
+        // bytes memory org   = hex"32600052";
+        // bytes memory calll = hex"33602052";
+        // bytes memory exec  = hex"30604052";
+        // bytes memory cv    = hex"34606052";
+        // bytes memory cb    = hex"41608052";
+        // bytes memory ts    = hex"4260a052";
+        // bytes memory nm    = hex"4360c052";
+        // bytes memory gl    = hex"4560e052";
+        // bytes memory df    = hex"4461010052";
+        // bytes memory ci    = hex"4661012052";
+        // bytes memory bf    = hex"4861014052";
+        // bytes memory retur = hex"6101406000F3";
 
-        bytes memory bytecode = abi.encodePacked(org, calll, exec, cv, cb, ts, nm, gl, df, ci, bf, retur);
+        
+        bytes memory bytecode = hex"32600052336020523060405234606052416080524260a0524360c0524560e0524461010052466101205248610140526101606000F3";
 
 
         (bool succ, bytes memory ret) = evm.evaluate(bytecode);
         emit log_named_bytes("ret", ret);
-        // (
-        //     address or,
-        //     address cal,
-        //     address ex,
-        //     uint256 calv,
-        //     address base,
-        //     uint256 stamp,
-        //     uint256 num,
-        //     uint256 lim,
-        //     uint256 diff,
-        //     uint256 chain,
-        //     uint256 fee
-        // ) = abi.decode(ret, (address, address, address, uint256, address, uint256, uint256, uint256, uint256, uint256, uint256));
-        // assertEq(or, origin);
-        // assertEq(cal, caller);
-        // assertEq(ex, execution_address);
-        // assertEq(calv, callvalue);
-        // assertEq(base, coinbase);
-        // assertEq(stamp, timestamp);
-        // assertEq(num, number);
-        // assertEq(lim, gaslimit);
-        // assertEq(diff, difficulty);
-        // assertEq(chain, chainid);
-        // assertEq(fee, basefee);
+        (
+            address or,
+            address cal,
+            address ex,
+            uint256 calv,
+            address base,
+            uint256 stamp,
+            uint256 num,
+            uint256 lim,
+            uint256 diff,
+            uint256 chain,
+            uint256 fee
+        ) = abi.decode(ret, (address, address, address, uint256, address, uint256, uint256, uint256, uint256, uint256, uint256));
+        assertEq(or, origin);
+        assertEq(cal, caller);
+        assertEq(ex, execution_address);
+        assertEq(calv, callvalue);
+        assertEq(base, coinbase);
+        assertEq(stamp, timestamp);
+        assertEq(num, number);
+        assertEq(lim, gaslimit);
+        assertEq(diff, difficulty);
+        assertEq(chain, chainid);
+        assertEq(fee, basefee);
     }
 }

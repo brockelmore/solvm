@@ -122,11 +122,13 @@ library EvmLib {
     function evaluate(Evm self, bytes memory bytecode) internal view returns (bool success, bytes memory ret) {
         Array ops = setupOpTable();
 
+        EvmContext memory ctx = context(self);
+
         // stack capacity unlikely to surpass 32 words
-        Stack stack = StackLib.newStack(32);
+        Stack stack = StackLib.newStack(10);
         
         // creates a storage map
-        Storage store = StorageLib.newStorage(10);
+        Storage store;// = StorageLib.newStorage(10);
 
         // mem capacity unlikely to surpass 32 words, but likely not a big deal if it does
         // (assuming no stack moves)
@@ -170,24 +172,18 @@ library EvmLib {
             } else if (op == 0x20) {
                 intoStackMemOp(ops.unsafe_get(op))(stack, mem);
             } else if (op == 0x30) {
-                EvmContext memory ctx = context(self);
                 stack = stack.push(uint256(uint160(ctx.execution_address)), 0);
             } else if (op == 0x31) {
-                EvmContext memory ctx = context(self);
                 bytes32 addr = bytes32(stack.pop());
                 (, uint256 bal) = ctx.balances.get(addr);
                 stack.unsafe_push(bal);
             } else if (op == 0x32) {
-                EvmContext memory ctx = context(self);
                 stack = stack.push(uint256(uint160(ctx.origin)), 0);
             } else if (op == 0x33) {
-                EvmContext memory ctx = context(self);
                 stack = stack.push(uint256(uint160(ctx.caller)), 0);
             } else if (op == 0x34) {
-                EvmContext memory ctx = context(self);
                 stack = stack.push(ctx.callvalue, 0);
             } else if (op == 0x35) {
-                EvmContext memory ctx = context(self);
                 bytes memory calld = ctx.calld;
                 uint256 word;
                 uint256 offset = stack.pop();
@@ -196,10 +192,8 @@ library EvmLib {
                 }
                 stack.unsafe_push(word);
             } else if (op == 0x36) {
-                EvmContext memory ctx = context(self);
                 stack = stack.push(ctx.calld.length, 0);
             } else if (op == 0x37) {
-                EvmContext memory ctx = context(self);
                 bytes memory calld = ctx.calld;
                 uint256 destOffset = stack.pop();
                 uint256 offset = stack.pop();
@@ -241,29 +235,21 @@ library EvmLib {
                     )
                 }
             } else if (op == 0x41) {
-                EvmContext memory ctx = context(self);
                 stack = stack.push(uint256(uint160(ctx.coinbase)), 0);
             } else if (op == 0x42) {
-                EvmContext memory ctx = context(self);
                 stack = stack.push(ctx.timestamp, 0);
             } else if (op == 0x43) {
-                EvmContext memory ctx = context(self);
                 stack = stack.push(ctx.number, 0);
             } else if (op == 0x44) {
-                EvmContext memory ctx = context(self);
                 stack = stack.push(ctx.difficulty, 0);
             } else if (op == 0x45) {
-                EvmContext memory ctx = context(self);
                 stack = stack.push(ctx.gaslimit, 0);
             } else if (op == 0x46) {
-                EvmContext memory ctx = context(self);
                 stack = stack.push(ctx.chainid, 0);
             } else if (op == 0x47) {
-                EvmContext memory ctx = context(self);
                 (, uint256 selfbal) = ctx.balances.get(bytes32(uint256(uint160(ctx.execution_address))));
                 stack = stack.push(selfbal, 0);
             } else if (op == 0x48) {
-                EvmContext memory ctx = context(self);
                 stack = stack.push(ctx.basefee, 0);
             } else if (op == 0x50) {
                 intoStackOp(ops.unsafe_get(op))(stack);
