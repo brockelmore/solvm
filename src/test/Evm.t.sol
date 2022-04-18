@@ -14,22 +14,22 @@ contract EvmTest is DSTest {
 
     function testPush() public view {
         Evm evm;
-        evm.evaluate(hex"6001");
+        evm.evaluate(hex"6001", 1, 0, 0);
     }
 
     function testPop() public view {
         Evm evm;
-        evm.evaluate(hex"600150");
+        evm.evaluate(hex"600150", 1, 0, 0);
     }
 
     function testAdd() public view {
         Evm evm;
-        evm.evaluate(hex"6001600101");
+        evm.evaluate(hex"6001600101", 2, 0, 0);
     }
 
     function testAddMany() public {
         Evm evm;
-        (bool succ, bytes memory ret) = evm.evaluate(hex"600160010160010160010160005260206000F3");
+        (bool succ, bytes memory ret) = evm.evaluate(hex"600160010160010160010160005260206000F3", 2, 0, 1);
         (uint256 r) = abi.decode(ret, (uint256));
         assertTrue(succ);
         assertEq(r, 4);
@@ -37,7 +37,7 @@ contract EvmTest is DSTest {
 
     function testMul() public {
         Evm evm;
-        (bool succ, bytes memory ret) = evm.evaluate(hex"600160030260005260206000F3");
+        (bool succ, bytes memory ret) = evm.evaluate(hex"600160030260005260206000F3", 3, 0, 1);
         (uint256 r) = abi.decode(ret, (uint256));
         assertTrue(succ);
         assertEq(r, 3);
@@ -45,16 +45,15 @@ contract EvmTest is DSTest {
 
     function testMSTORE() public view {
         Evm evm;
-        evm.evaluate(hex"6001600352");
+        evm.evaluate(hex"6001600352", 2, 0, 1);
     }
 
     function testRet() public {
         Evm evm;
-        (bool succ, bytes memory ret) = evm.evaluate(hex"600160005260206000F3");
+        (bool succ, bytes memory ret) = evm.evaluate(hex"600160005260206000F3", 2, 0, 1);
         (uint256 r) = abi.decode(ret, (uint256));
         assertTrue(succ);
         assertEq(r, 1);
-        emit log_named_bytes("ret", ret);
     }
 
     function testCtx() public {
@@ -107,8 +106,7 @@ contract EvmTest is DSTest {
         bytes memory bytecode = hex"32600052336020523060405234606052416080524260a0524360c0524560e0524461010052466101205248610140526101606000F3";
 
 
-        (bool succ, bytes memory ret) = evm.evaluate(bytecode);
-        emit log_named_bytes("ret", ret);
+        (bool succ, bytes memory ret) = evm.evaluate(bytecode, 10, 0, 10);
         (
             address or,
             address cal,

@@ -32,10 +32,10 @@ library EvmLib {
     }
 
     function setupOpTable() internal view returns (Array ops) {
-        ops = ArrayLib.newArray(256);
+        ops = ArrayLib.newArray(0x5a);
         // set capacity
         assembly ("memory-safe") {
-            mstore(ops, 256)
+            mstore(ops, 0x5a)
         }
 
         // stack
@@ -96,16 +96,6 @@ library EvmLib {
         ops.unsafe_set(0x55, intoPtr(StorageLib.sstore));
 
         ops.unsafe_set(0x5a, intoPtr(Builtins._gas));
-
-        // ops.unsafe_set(0x5b, intoStackRetOpPtr(Builtins.jumpdest));
-        // only 1 push op, handle different ones in the push function
-        ops.unsafe_set(0x60, intoPushPtr(push));
-
-        // only 1 dup op, handle different ones in the dup function
-        ops.unsafe_set(0x80, intoDupOpPtr(StackLib.dup));
-
-        // only 1 swap op, handle different ones in the swap function
-        ops.unsafe_set(0x90, intoSwapOpPtr(StackLib.swap));
     }
 
     function context(Evm self) internal pure returns (EvmContext memory ctx) {
@@ -115,110 +105,124 @@ library EvmLib {
     }
 
     function evaluate(Evm self, bytes memory bytecode) internal view returns (bool success, bytes memory ret) {
+        (success, ret) = evaluate(self, bytecode, 32, 10, 32);
+    }
+
+    function evaluate(Evm self, bytes memory bytecode, uint16 stackSizeHint, uint16 storageSizeHint, uint32 memSizeHint) internal view returns (bool success, bytes memory ret) {
         Array ops = setupOpTable();
 
         EvmContext memory ctx = context(self);
 
         // stack capacity unlikely to surpass 32 words
-        Stack stack = StackLib.newStack(32);
+        Stack stack = StackLib.newStack(stackSizeHint);
         
         // creates a storage map
-        Storage store = StorageLib.newStorage(10);
+        Storage store = StorageLib.newStorage(storageSizeHint);
 
         // mem capacity unlikely to surpass 32 words, but likely not a big deal if it does
-        // (assuming no stack moves)
-        Memory mem = MemoryLib.newMemory(32);
-
-        
+        // (assuming no stack/storage/ctx moves)
+        Memory mem = MemoryLib.newMemory(memSizeHint);
 
         success = true;
         ret = "";
         uint256 i = 0;
 
-        bool was_jump = false;
-
-        // semantics can be improved by moving to a `RefStack` and `RefMemory` system
-        //
-        // gas can be improved by making all functions have the same interface, i.e.:
-        // function(Stack, Memory, Storage) internal view returns (Stack, Memory, Storage)
-        //
-        // this would allow for removal 90% of the if else clause below
         while (i < bytecode.length) {
             uint256 op;
             assembly ("memory-safe") {
                 op := shr(248, mload(add(add(0x20, bytecode), i)))
             }
 
-            if (was_jump) {
-                if (op != 0x5b) {
-                    ret = "invalid jump";
-                    success = false;
-                    break;
+            // we only use the optable for opcodes <= 0x5a, so try to short circuit
+            if (op <= 0x5a) {
+                if (op == 0x56) {
+                    // jump
+                    i = stack.pop();
+                    // check for jumpdest
+                    assembly ("memory-safe") {
+                        op := shr(248, mload(add(add(0x20, bytecode), i)))
+                    }
+                    if (op != 0x5b) {
+                        ret = "invalid jump";
+                        success = false;
+                        break;
+                    }
+                } else if (op == 0x57) {
+                    // jumpi
+                    uint256 jump_loc = stack.pop();
+                    uint256 b = stack.pop();
+                    if (b != 0) {
+                        i = jump_loc;
+                        // check for jumpdest
+                        assembly ("memory-safe") {
+                            op := shr(248, mload(add(add(0x20, bytecode), i)))
+                        }
+                        if (op != 0x5b) {
+                            ret = "invalid jump";
+                            success = false;
+                            break;
+                        }
+                    }
+                } else if (op == 0x38) {
+                    // codesize
+                    stack = stack.push(bytecode.length, 0);
+                } else if (op == 0x39) {
+                    // codecopy
+                    codecopy(stack, mem, bytecode);
+                } else if (op == 0x58) {
+                    // pc
+                    stack = stack.push(i, 0);
                 } else {
-                    was_jump = false;
-                    continue;
+                    // any op not specifically handled
+                    (stack, mem, store, ctx) = intoOp(ops.unsafe_get(op))(mem, stack, store, ctx);
                 }
-            }
-
-            if (op >= 0x60 && op <= 0x7F) {
-                (stack, i) = intoPushOp(ops.unsafe_get(0x60))(stack, bytecode, op, i);
+            } else if (op >= 0x60 && op <= 0x7F) {
+                // pushN
+                (stack, i) = push(stack, bytecode, op, i);
             } else if (op >= 0x80 && op <= 0x8F) {
+                // dupN
                 uint256 index = op - 0x7F;
-                stack = intoDupOp(ops.unsafe_get(0x80))(stack, index);
+                stack = stack.dup(index);
             } else if (op >= 0x90 && op <= 0x9F) {
+                // swapN
                 uint256 index = op - 0x8F;
-                intoSwapOp(ops.unsafe_get(0x90))(stack, index);
-            } else if (op == 0x56) {
-                // jump
-                i = stack.pop();
-                was_jump = true;
-                continue;
-            } else if (op == 0x57) {
-                // jumpi
-                uint256 jump_loc = stack.pop();
-                uint256 b = stack.pop();
-                if (b != 0) {
-                    i = jump_loc;
-                    was_jump = true;
-                    continue;
-                }
-            } else if (op == 0x38) {
-                stack = stack.push(bytecode.length, 0);
-            } else if (op == 0x39) {
-                uint256 destOffset = stack.pop();
-                uint256 offset = stack.pop();
-                uint256 size = stack.pop();
-                uint256 ptr_mask = MemoryLib.ptr_mask;
-
-                // just use the identity precompile for simplicity
-                assembly ("memory-safe") {
-                    pop(
-                        staticcall(
-                            gas(), // pass gas
-                            0x04,  // call identity precompile address 
-                            add(bytecode, offset), // arg offset == pointer to calldata
-                            size,  // arg size
-                            add(and(mem, ptr_mask), destOffset), // set return buffer to memory ptr + destination offset
-                            size   // identity just returns the bytes of the input so equal to argsize 
-                        )
-                    )
-                }
-            } else if (op == 0x58) {
-                stack = stack.push(i, 0);
+                stack.swap(index);
             } else if (op == 0) {
+                // STOP
                 break;
             } else if (op == 0xF3) {
+                // return
                 ret = stack._return(mem);
                 break;
             } else if (op == 0xFD) {
+                // revert
                 ret = stack._revert(mem);
                 success = false;
                 break;
-            } else {
-                (stack, mem, store, ctx) = intoOp(ops.unsafe_get(op))(mem, stack, store, ctx);
             }
 
             ++i;
+        }
+    }
+
+    function codecopy(Stack stack, Memory mem, bytes memory bytecode) internal view {
+        uint256 destOffset = stack.pop();
+        uint256 offset = stack.pop();
+        uint256 size = stack.pop();
+        uint256 ptr_mask = MemoryLib.ptr_mask;
+
+        // just use the identity precompile for simplicity
+        assembly ("memory-safe") {
+            pop(
+                staticcall(
+                    gas(), // pass gas
+                    0x04,  // call identity precompile address 
+                    add(bytecode, offset), // arg offset == pointer to calldata
+                    size,  // arg size
+                    add(and(mem, ptr_mask), destOffset), // set return buffer to memory ptr + destination offset
+                    size   // identity just returns the bytes of the input so equal to argsize 
+                )
+            )
         }
     }
 
