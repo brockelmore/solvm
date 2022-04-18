@@ -2,6 +2,8 @@
 pragma solidity >=0.8.13 <0.9.0;
 
 import "./Memory.sol";
+import "./EvmContext.sol";
+import "./Storage.sol";
 
 // create a user defined type that is a pointer to memory
 type Stack is bytes32;

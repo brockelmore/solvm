@@ -4,7 +4,7 @@ pragma solidity >=0.8.13 <0.9.0;
 import "memmove/Mapping.sol";
 import "./Stack.sol";
 import "./Memory.sol";
-import "./Evm.sol";
+import "./EvmContext.sol";
 
 // create a user defined type that is a pointer to memory
 type Storage is bytes32;

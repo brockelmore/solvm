@@ -12,8 +12,6 @@ contract EvmTest is DSTest {
     using EvmLib for Evm;
     using MappingLib for Mapping;
 
-    function setUp() public {}
-
     function testPush() public view {
         Evm evm;
         evm.evaluate(hex"6001");
