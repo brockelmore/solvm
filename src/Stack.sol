@@ -511,10 +511,6 @@ library Builtins {
         stor = store;
         ct = ctx;
     }
-
-    // function jumpdest(Stack self) internal pure returns (Stack s) {
-    //     s = self;
-    // }
 }
 
 library ControlFlow {
@@ -533,7 +529,7 @@ library ControlFlow {
         uint256 offset = self.pop() + mem.loc();
         uint256 size = self.pop();
         assembly ("memory-safe") {
-            ret := offset
+            ret := sub(offset, 0x20)
             mstore(ret, size)
         }
     }
