@@ -289,7 +289,7 @@ library EvmLib {
         }
     }
 
-    function evaluate(Evm self, bytes memory bytecode) internal returns (bool success, bytes memory ret) {
+    function evaluate(Evm self, bytes memory bytecode) internal view returns (bool success, bytes memory ret) {
         Array ops = setupOpTable();
 
         EvmContext memory ctx = context(self);
