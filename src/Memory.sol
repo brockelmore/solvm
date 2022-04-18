@@ -2,6 +2,7 @@
 pragma solidity >=0.8.13 <0.9.0;
 
 import "./Stack.sol";
+import "./Storage.sol";
 
 // create a user defined type that is a pointer to memory
 type Memory is bytes32;
@@ -38,11 +39,15 @@ library MemoryLib {
         }
     }
 
-    function msize(Memory self, Stack stack) internal view returns (Stack s) {
+    function msize(Memory self, Stack stack, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
+        ret = self;
+        stor = store;
+        ct = ctx;
         s = stack.push(msize_internal(self), 0);
     }
 
-    function mload(Memory self, Stack stack) internal view returns (Memory ret, Stack s) {
+    function mload(Memory self, Stack stack, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
+        stor = store;
         uint256 offset = stack.pop() + loc(self);
         uint256 word;
         assembly ("memory-safe") {
@@ -50,9 +55,12 @@ library MemoryLib {
         }
         s = stack.push(word, 0);
         ret = self;
+        ct = ctx;
     }
 
-    function mstore(Memory self, Stack stack) internal view returns (Memory ret, Stack s) {
+    function mstore(Memory self, Stack stack, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
+        stor = store;
+        ct = ctx;
         uint256 offset = stack.pop() + loc(self);
         uint256 elem = stack.pop();
         uint256 endLoc = end(self);

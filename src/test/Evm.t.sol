@@ -14,17 +14,17 @@ contract EvmTest is DSTest {
 
     function setUp() public {}
 
-    function testPush() public view {
+    function testPush() public {
         Evm evm;
         evm.evaluate(hex"6001");
     }
 
-    function testPop() public view {
+    function testPop() public {
         Evm evm;
         evm.evaluate(hex"600150");
     }
 
-    function testAdd() public view {
+    function testAdd() public {
         Evm evm;
         evm.evaluate(hex"6001600101");
     }
@@ -45,7 +45,7 @@ contract EvmTest is DSTest {
         assertEq(r, 3);
     }
 
-    function testMSTORE() public view {
+    function testMSTORE() public {
         Evm evm;
         evm.evaluate(hex"6001600352");
     }

@@ -26,6 +26,158 @@ struct EvmContext {
     bytes calld;
 }
 
+library EvmContextLib {
+    using StackLib for Stack;
+    using MemoryLib for Memory;
+    using StorageLib for Storage;
+
+    using ArrayLib for Array;
+    using MappingLib for Mapping;
+
+    function _address(Memory mem, Stack stack, Storage store, EvmContext memory ctx) internal view returns(Stack s, Memory ret, Storage stor, EvmContext memory ct) {
+        s = stack.push(uint256(uint160(ctx.execution_address)), 0);
+        ret = mem;
+        stor = store;
+        ct = ctx;
+    }
+
+    function _balance(Memory mem, Stack stack, Storage store, EvmContext memory ctx) internal view returns(Stack s, Memory ret, Storage stor, EvmContext memory ct) {
+        bytes32 addr = bytes32(stack.pop());
+        (, uint256 bal) = ctx.balances.get(addr);
+        stack.unsafe_push(bal);
+        s = stack;
+        ret = mem;
+        stor = store;
+        ct = ctx;
+    }
+
+    function origin(Memory mem, Stack stack, Storage store, EvmContext memory ctx) internal view returns(Stack s, Memory ret, Storage stor, EvmContext memory ct) {
+        s = stack.push(uint256(uint160(ctx.origin)), 0);
+        ret = mem;
+        stor = store;
+        ct = ctx;
+    }
+
+    function caller(Memory mem, Stack stack, Storage store, EvmContext memory ctx) internal view returns(Stack s, Memory ret, Storage stor, EvmContext memory ct) {
+        s = stack.push(uint256(uint160(ctx.caller)), 0);
+        ret = mem;
+        stor = store;
+        ct = ctx;
+    }
+
+    function callvalue(Memory mem, Stack stack, Storage store, EvmContext memory ctx) internal view returns(Stack s, Memory ret, Storage stor, EvmContext memory ct) {
+        s = stack.push(ctx.callvalue, 0);
+        ret = mem;
+        stor = store;
+        ct = ctx;
+    }
+
+    function calldataload(Memory mem, Stack stack, Storage store, EvmContext memory ctx) internal view returns(Stack s, Memory ret, Storage stor, EvmContext memory ct) {
+        bytes memory calld = ctx.calld;
+        uint256 word;
+        uint256 offset = stack.pop();
+        assembly ("memory-safe") {
+            word := mload(add(calld, offset))
+        }
+        stack.unsafe_push(word);
+        s = stack;
+        ret = mem;
+        stor = store;
+        ct = ctx;
+    }
+
+    function calldatasize(Memory mem, Stack stack, Storage store, EvmContext memory ctx) internal view returns(Stack s, Memory ret, Storage stor, EvmContext memory ct) {
+        s = stack.push(ctx.calld.length, 0);
+        ret = mem;
+        stor = store;
+        ct = ctx;
+    }
+
+    function calldatacopy(Memory mem, Stack stack, Storage store, EvmContext memory ctx) internal view returns(Stack s, Memory ret, Storage stor, EvmContext memory ct) {
+        bytes memory calld = ctx.calld;
+        uint256 destOffset = stack.pop();
+        uint256 offset = stack.pop();
+        uint256 size = stack.pop();
+        uint256 ptr_mask = MemoryLib.ptr_mask;
+
+        // just use the identity precompile for simplicity
+        assembly ("memory-safe") {
+            pop(
+                staticcall(
+                    gas(), // pass gas
+                    0x04,  // call identity precompile address 
+                    add(calld, offset), // arg offset == pointer to calldata
+                    size,  // arg size
+                    add(and(mem, ptr_mask), destOffset), // set return buffer to memory ptr + destination offset
+                    size   // identity just returns the bytes of the input so equal to argsize 
+                )
+            )
+        }
+        s = stack;
+        ret = mem;
+        stor = store;
+        ct = ctx;
+    }
+
+    function coinbase(Memory mem, Stack stack, Storage store, EvmContext memory ctx) internal view returns(Stack s, Memory ret, Storage stor, EvmContext memory ct) {
+        s = stack.push(uint256(uint160(ctx.coinbase)), 0);
+        ret = mem;
+        stor = store;
+        ct = ctx;
+    }
+
+    function timestamp(Memory mem, Stack stack, Storage store, EvmContext memory ctx) internal view returns(Stack s, Memory ret, Storage stor, EvmContext memory ct) {
+        s = stack.push(ctx.timestamp, 0);
+        ret = mem;
+        stor = store;
+        ct = ctx;
+    }
+
+    function number(Memory mem, Stack stack, Storage store, EvmContext memory ctx) internal view returns(Stack s, Memory ret, Storage stor, EvmContext memory ct) {
+        s = stack.push(ctx.number, 0);
+        ret = mem;
+        stor = store;
+        ct = ctx;
+    }
+
+    function difficulty(Memory mem, Stack stack, Storage store, EvmContext memory ctx) internal view returns(Stack s, Memory ret, Storage stor, EvmContext memory ct) {
+        s = stack.push(ctx.difficulty, 0);
+        ret = mem;
+        stor = store;
+        ct = ctx;
+    }
+
+    function gaslimit(Memory mem, Stack stack, Storage store, EvmContext memory ctx) internal view returns(Stack s, Memory ret, Storage stor, EvmContext memory ct) {
+        s = stack.push(ctx.gaslimit, 0);
+        ret = mem;
+        stor = store;
+        ct = ctx;
+    }
+
+    function chainid(Memory mem, Stack stack, Storage store, EvmContext memory ctx) internal view returns(Stack s, Memory ret, Storage stor, EvmContext memory ct) {
+        s = stack.push(ctx.chainid, 0);
+        ret = mem;
+        stor = store;
+        ct = ctx;
+    }
+
+    function selfbalance(Memory mem, Stack stack, Storage store, EvmContext memory ctx) internal view returns(Stack s, Memory ret, Storage stor, EvmContext memory ct) {
+        (, uint256 selfbal) = ctx.balances.get(bytes32(uint256(uint160(ctx.execution_address))));
+        s = stack.push(selfbal, 0);
+        ret = mem;
+        stor = store;
+        ct = ctx;
+    }
+    
+    function basefee(Memory mem, Stack stack, Storage store, EvmContext memory ctx) internal view returns(Stack s, Memory ret, Storage stor, EvmContext memory ct) {
+        s = stack.push(ctx.basefee, 0);
+        ret = mem;
+        stor = store;
+        ct = ctx;
+    }
+    
+}
+
 
 library EvmLib {
     using StackLib for Stack;
@@ -49,6 +201,8 @@ library EvmLib {
         }
     }
 
+    event log_named_uint         (string key, uint val);
+
 
     error UnsupportedOp(uint256);
 
@@ -59,49 +213,65 @@ library EvmLib {
             mstore(ops, 256)
         }
 
-        // would be nice if we could use a lookup table instead but we cant
-        // cuz no constant arrays in solidity
-        ops.unsafe_set(0x01, intoStackOpPtr(MathOps.add));
-        ops.unsafe_set(0x02, intoStackOpPtr(MathOps.mul));
-        ops.unsafe_set(0x03, intoStackOpPtr(MathOps.sub));
-        ops.unsafe_set(0x04, intoStackOpPtr(MathOps.div));
-        ops.unsafe_set(0x05, intoStackOpPtr(MathOps.sdiv));
-        ops.unsafe_set(0x06, intoStackOpPtr(MathOps.mod));
-        ops.unsafe_set(0x07, intoStackOpPtr(MathOps.smod));
-        ops.unsafe_set(0x08, intoStackOpPtr(MathOps._addmod));
-        ops.unsafe_set(0x09, intoStackOpPtr(MathOps._mulmod));
-        ops.unsafe_set(0x0a, intoStackOpPtr(MathOps._exp));
-        ops.unsafe_set(0x0b, intoStackOpPtr(MathOps.signextend));
-        ops.unsafe_set(0x10, intoStackOpPtr(MathOps.lt));
-        ops.unsafe_set(0x11, intoStackOpPtr(MathOps.gt));
-        ops.unsafe_set(0x12, intoStackOpPtr(MathOps.slt));
-        ops.unsafe_set(0x13, intoStackOpPtr(MathOps.sgt));
-        ops.unsafe_set(0x14, intoStackOpPtr(MathOps.eq));
-        ops.unsafe_set(0x15, intoStackOpPtr(MathOps.iszero));
+        // stack
+        ops.unsafe_set(0x01, intoPtr(MathOps.add));
+        ops.unsafe_set(0x02, intoPtr(MathOps.mul));
+        ops.unsafe_set(0x03, intoPtr(MathOps.sub));
+        ops.unsafe_set(0x04, intoPtr(MathOps.div));
+        ops.unsafe_set(0x05, intoPtr(MathOps.sdiv));
+        ops.unsafe_set(0x06, intoPtr(MathOps.mod));
+        ops.unsafe_set(0x07, intoPtr(MathOps.smod));
+        ops.unsafe_set(0x08, intoPtr(MathOps._addmod));
+        ops.unsafe_set(0x09, intoPtr(MathOps._mulmod));
+        ops.unsafe_set(0x0a, intoPtr(MathOps._exp));
+        ops.unsafe_set(0x0b, intoPtr(MathOps.signextend));
+        ops.unsafe_set(0x10, intoPtr(MathOps.lt));
+        ops.unsafe_set(0x11, intoPtr(MathOps.gt));
+        ops.unsafe_set(0x12, intoPtr(MathOps.slt));
+        ops.unsafe_set(0x13, intoPtr(MathOps.sgt));
+        ops.unsafe_set(0x14, intoPtr(MathOps.eq));
+        ops.unsafe_set(0x15, intoPtr(MathOps.iszero));
 
-        ops.unsafe_set(0x16, intoStackOpPtr(BinOps.and));
-        ops.unsafe_set(0x17, intoStackOpPtr(BinOps.or));
-        ops.unsafe_set(0x18, intoStackOpPtr(BinOps.xor));
-        ops.unsafe_set(0x19, intoStackOpPtr(BinOps.not));
-        ops.unsafe_set(0x1a, intoStackOpPtr(BinOps._byte));
-        ops.unsafe_set(0x1b, intoStackOpPtr(BinOps.not));
-        ops.unsafe_set(0x1c, intoStackOpPtr(BinOps.not));
-        ops.unsafe_set(0x1d, intoStackOpPtr(BinOps.not));
+        ops.unsafe_set(0x16, intoPtr(BinOps.and));
+        ops.unsafe_set(0x17, intoPtr(BinOps.or));
+        ops.unsafe_set(0x18, intoPtr(BinOps.xor));
+        ops.unsafe_set(0x19, intoPtr(BinOps.not));
+        ops.unsafe_set(0x1a, intoPtr(BinOps._byte));
+        ops.unsafe_set(0x1b, intoPtr(BinOps.not));
+        ops.unsafe_set(0x1c, intoPtr(BinOps.not));
+        ops.unsafe_set(0x1d, intoPtr(BinOps.not));
 
-        ops.unsafe_set(0x20, intoStackMemOpPtr(Builtins._sha3));
+        ops.unsafe_set(0x20, intoPtr(Builtins._sha3));
 
-        // evm context & state not currently available
-        // 0x30 - 0x48
+        // Context
+        ops.unsafe_set(0x30, intoPtr(EvmContextLib._address));
+        ops.unsafe_set(0x31, intoPtr(EvmContextLib._balance));
+        ops.unsafe_set(0x32, intoPtr(EvmContextLib.origin));
+        ops.unsafe_set(0x33, intoPtr(EvmContextLib.caller));
+        ops.unsafe_set(0x34, intoPtr(EvmContextLib.callvalue));
+        ops.unsafe_set(0x35, intoPtr(EvmContextLib.calldataload));
+        ops.unsafe_set(0x36, intoPtr(EvmContextLib.calldatasize));
+        ops.unsafe_set(0x37, intoPtr(EvmContextLib.calldatacopy));
 
-        ops.unsafe_set(0x50, intoStackOpPtr(StackLib._pop));
+        ops.unsafe_set(0x41, intoPtr(EvmContextLib.coinbase));
+        ops.unsafe_set(0x42, intoPtr(EvmContextLib.timestamp));
+        ops.unsafe_set(0x43, intoPtr(EvmContextLib.number));
+        ops.unsafe_set(0x44, intoPtr(EvmContextLib.difficulty));
+        ops.unsafe_set(0x45, intoPtr(EvmContextLib.gaslimit));
+        ops.unsafe_set(0x46, intoPtr(EvmContextLib.chainid));
+        ops.unsafe_set(0x47, intoPtr(EvmContextLib.selfbalance));
+        ops.unsafe_set(0x48, intoPtr(EvmContextLib.basefee));
 
-        ops.unsafe_set(0x51, intoMemStackOpPtr(MemoryLib.mload));
-        ops.unsafe_set(0x52, intoMemStackOpPtr(MemoryLib.mstore));
+        ops.unsafe_set(0x50, intoPtr(StackLib._pop));
 
-        ops.unsafe_set(0x54, intoStorageStackOpPtr(StorageLib.sload));
-        ops.unsafe_set(0x55, intoStorageStackOpPtr(StorageLib.sstore));
+        ops.unsafe_set(0x51, intoPtr(MemoryLib.mload));
+        ops.unsafe_set(0x52, intoPtr(MemoryLib.mstore));
 
-        ops.unsafe_set(0x5a, intoStackRetOpPtr(Builtins._gas));
+        ops.unsafe_set(0x54, intoPtr(StorageLib.sload));
+        ops.unsafe_set(0x55, intoPtr(StorageLib.sstore));
+
+        ops.unsafe_set(0x5a, intoPtr(Builtins._gas));
+
         // ops.unsafe_set(0x5b, intoStackRetOpPtr(Builtins.jumpdest));
         // only 1 push op, handle different ones in the push function
         ops.unsafe_set(0x60, intoPushPtr(push));
@@ -119,7 +289,7 @@ library EvmLib {
         }
     }
 
-    function evaluate(Evm self, bytes memory bytecode) internal view returns (bool success, bytes memory ret) {
+    function evaluate(Evm self, bytes memory bytecode) internal returns (bool success, bytes memory ret) {
         Array ops = setupOpTable();
 
         EvmContext memory ctx = context(self);
@@ -167,52 +337,6 @@ library EvmLib {
 
             if (op == 0) {
                 break;
-            } else if (op < 0x20) {
-                intoStackOp(ops.unsafe_get(op))(stack);
-            } else if (op == 0x20) {
-                intoStackMemOp(ops.unsafe_get(op))(stack, mem);
-            } else if (op == 0x30) {
-                stack = stack.push(uint256(uint160(ctx.execution_address)), 0);
-            } else if (op == 0x31) {
-                bytes32 addr = bytes32(stack.pop());
-                (, uint256 bal) = ctx.balances.get(addr);
-                stack.unsafe_push(bal);
-            } else if (op == 0x32) {
-                stack = stack.push(uint256(uint160(ctx.origin)), 0);
-            } else if (op == 0x33) {
-                stack = stack.push(uint256(uint160(ctx.caller)), 0);
-            } else if (op == 0x34) {
-                stack = stack.push(ctx.callvalue, 0);
-            } else if (op == 0x35) {
-                bytes memory calld = ctx.calld;
-                uint256 word;
-                uint256 offset = stack.pop();
-                assembly ("memory-safe") {
-                    word := mload(add(calld, offset))
-                }
-                stack.unsafe_push(word);
-            } else if (op == 0x36) {
-                stack = stack.push(ctx.calld.length, 0);
-            } else if (op == 0x37) {
-                bytes memory calld = ctx.calld;
-                uint256 destOffset = stack.pop();
-                uint256 offset = stack.pop();
-                uint256 size = stack.pop();
-                uint256 ptr_mask = MemoryLib.ptr_mask;
-
-                // just use the identity precompile for simplicity
-                assembly ("memory-safe") {
-                    pop(
-                        staticcall(
-                            gas(), // pass gas
-                            0x04,  // call identity precompile address 
-                            add(calld, offset), // arg offset == pointer to calldata
-                            size,  // arg size
-                            add(and(mem, ptr_mask), destOffset), // set return buffer to memory ptr + destination offset
-                            size   // identity just returns the bytes of the input so equal to argsize 
-                        )
-                    )
-                }
             } else if (op == 0x38) {
                 stack = stack.push(bytecode.length, 0);
             } else if (op == 0x39) {
@@ -234,29 +358,6 @@ library EvmLib {
                         )
                     )
                 }
-            } else if (op == 0x41) {
-                stack = stack.push(uint256(uint160(ctx.coinbase)), 0);
-            } else if (op == 0x42) {
-                stack = stack.push(ctx.timestamp, 0);
-            } else if (op == 0x43) {
-                stack = stack.push(ctx.number, 0);
-            } else if (op == 0x44) {
-                stack = stack.push(ctx.difficulty, 0);
-            } else if (op == 0x45) {
-                stack = stack.push(ctx.gaslimit, 0);
-            } else if (op == 0x46) {
-                stack = stack.push(ctx.chainid, 0);
-            } else if (op == 0x47) {
-                (, uint256 selfbal) = ctx.balances.get(bytes32(uint256(uint160(ctx.execution_address))));
-                stack = stack.push(selfbal, 0);
-            } else if (op == 0x48) {
-                stack = stack.push(ctx.basefee, 0);
-            } else if (op == 0x50) {
-                intoStackOp(ops.unsafe_get(op))(stack);
-            } else if (op == 0x51 || op == 0x52) {
-                (mem, stack) = intoMemStackOp(ops.unsafe_get(op))(mem, stack);
-            } else if (op == 0x54 || op == 0x55) {
-                intoStorageStackOp(ops.unsafe_get(op))(store, stack);
             } else if (op == 0x56) {
                 // jump
                 i = stack.pop();
@@ -289,7 +390,7 @@ library EvmLib {
                 success = false;
                 break;
             } else {
-                revert UnsupportedOp(op);
+                (stack, mem, store, ctx) = intoOp(ops.unsafe_get(op))(mem, stack, store, ctx);
             }
 
             ++i;
@@ -307,6 +408,18 @@ library EvmLib {
         s = self.push(pushBytes);
     }
 
+    function intoPtr(function(Memory, Stack, Storage, EvmContext memory) internal view returns (Stack, Memory, Storage, EvmContext memory) op) internal pure returns (uint256 ptr) {
+        assembly ("memory-safe") {
+            ptr := op
+        }
+    }
+
+    function intoOp(uint256 ptr) internal pure returns (function(Memory, Stack, Storage, EvmContext memory) internal view returns (Stack, Memory, Storage, EvmContext memory) op) {
+        assembly ("memory-safe") {
+            op := ptr
+        }
+    }
+
     function intoPushPtr(function(Stack, bytes memory, uint256, uint256) internal view returns (Stack, uint256) op) internal pure returns (uint256 ptr) {
         assembly ("memory-safe") {
             ptr := op
@@ -316,12 +429,6 @@ library EvmLib {
     function intoPushOp(uint256 ptr) internal pure returns (function(Stack, bytes memory, uint256, uint256) internal pure returns (Stack, uint256) op) {
         assembly ("memory-safe") {
             op := ptr
-        }
-    }
-
-    function intoStackOpPtr(function(Stack) op) internal pure returns (uint256 ptr) {
-        assembly ("memory-safe") {
-            ptr := op
         }
     }
 
@@ -344,73 +451,6 @@ library EvmLib {
     }
 
     function intoSwapOp(uint256 ptr) internal pure returns (function(Stack, uint256) view op) {
-        assembly ("memory-safe") {
-            op := ptr
-        }
-    }
-
-    function intoMemOpPtr(function(Memory) op) internal pure returns (uint256 ptr) {
-        assembly ("memory-safe") {
-            ptr := op
-        }
-    }
-
-    function intoMemStackOpPtr(function(Memory, Stack) view returns (Memory, Stack) op) internal pure returns (uint256 ptr) {
-        assembly ("memory-safe") {
-            ptr := op
-        }
-    }
-
-    function intoStackMemOpPtr(function(Stack, Memory) op) internal pure returns (uint256 ptr) {
-        assembly ("memory-safe") {
-            ptr := op
-        }
-    }
-
-    function intoStorageStackOpPtr(function(Storage, Stack) view op) internal pure returns (uint256 ptr) {
-        assembly ("memory-safe") {
-            ptr := op
-        }
-    }
-
-    function intoStorageStackOp(uint256 ptr) internal pure returns (function(Storage, Stack) view op) {
-        assembly ("memory-safe") {
-            op := ptr
-        }
-    }
-
-    function intoStackOp(uint256 ptr) internal pure returns (function(Stack) view op) {
-        assembly ("memory-safe") {
-            op := ptr
-        }
-    }
-
-
-    function intoStackRetOp(uint256 ptr) internal pure returns (function(Stack) view returns (Stack) op) {
-        assembly ("memory-safe") {
-            op := ptr
-        }
-    }
-
-    function intoStackRetOpPtr(function(Stack) view returns (Stack) op) internal pure returns (uint256 ptr) {
-        assembly ("memory-safe") {
-            op := ptr
-        }
-    }
-
-    function intoMemOp(uint256 ptr) internal pure returns (function(Memory) view op) {
-        assembly ("memory-safe") {
-            op := ptr
-        }
-    }
-
-    function intoStackMemOp(uint256 ptr) internal pure returns (function(Stack, Memory) view op) {
-        assembly ("memory-safe") {
-            op := ptr
-        }
-    }
-
-    function intoMemStackOp(uint256 ptr) internal pure returns (function(Memory, Stack) view returns (Memory, Stack) op) {
         assembly ("memory-safe") {
             op := ptr
         }

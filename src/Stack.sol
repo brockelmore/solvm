@@ -163,13 +163,19 @@ library StackLib {
         }
     }
 
-    function _pop(Stack self) internal pure {
+    function _pop(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct){
+
         assembly ("memory-safe") {
             // we only add one to get last element
             let last := add(self, mul(add(0x01, mload(self)), 0x20))
             mstore(last, 0x00)
             mstore(self, sub(mload(self), 0x01))
         }
+        s = self;
+        ret = mem;
+        stor = store;
+        ct = ctx;
+        ct = ctx;
     }
 
     function swap(Stack self, uint256 index) internal pure {
@@ -199,69 +205,112 @@ library StackLib {
 
 library MathOps {
     using StackLib for Stack;
-    function add(Stack self) internal pure {
+    function add(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
+        ret = mem;
+        stor = store;
+        ct = ctx;
         uint256 a = self.pop();
         uint256 b = self.pop();
         self.unsafe_push(a + b);
+        s = self;
     }
 
-    function mul(Stack self) internal pure {
+    function mul(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
+        ret = mem;
+        stor = store;
+        ct = ctx;
         uint256 a = self.pop();
         uint256 b = self.pop();
         self.unsafe_push(a * b);
+        s = self;
     }
 
-    function sub(Stack self) internal pure {
+    function sub(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
+        ret = mem;
+        stor = store;
+        ct = ctx;
         uint256 a = self.pop();
         uint256 b = self.pop();
         self.unsafe_push(a - b);
+        s = self;
     }
 
-    function div(Stack self) internal pure {
+    function div(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
+        ret = mem;
+        stor = store;
+        ct = ctx;
         uint256 a = self.pop();
         uint256 b = self.pop();
         self.unsafe_push(a / b);
+        s = self;
     }
 
-    function sdiv(Stack self) internal pure {
+    function sdiv(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
+        ret = mem;
+        stor = store;
+        ct = ctx;
         int256 a = int256(self.pop());
         int256 b = int256(self.pop());
         self.unsafe_push(uint256(a / b));
+        s = self;
     }
 
-    function mod(Stack self) internal pure {
+    function mod(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
+        ret = mem;
+        stor = store;
+        ct = ctx;
         uint256 a = self.pop();
         uint256 b = self.pop();
         self.unsafe_push(a % b);
+        s = self;
     }
 
-    function smod(Stack self) internal pure {
+    function smod(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
+        ret = mem;
+        stor = store;
+        ct = ctx;
         int256 a = int256(self.pop());
         int256 b = int256(self.pop());
         self.unsafe_push(uint256(a % b));
+        s = self;
     }
 
-    function _addmod(Stack self) internal pure {
+    function _addmod(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
+        ret = mem;
+        stor = store;
+        ct = ctx;
         uint256 a = self.pop();
         uint256 b = self.pop();
         uint256 N = self.pop();
         self.unsafe_push(addmod(a, b, N));
+        s = self;
     }
 
-    function _mulmod(Stack self) internal pure {
+    function _mulmod(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
+        ret = mem;
+        stor = store;
+        ct = ctx;
         uint256 a = self.pop();
         uint256 b = self.pop();
         uint256 N = self.pop();
         self.unsafe_push(mulmod(a, b, N));
+        s = self;
     }
 
-    function _exp(Stack self) internal pure {
+    function _exp(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
+        ret = mem;
+        stor = store;
+        ct = ctx;
         uint256 a = self.pop();
         uint256 exponent = self.pop();
         self.unsafe_push(a**exponent);
+        s = self;
     }
 
-    function lt(Stack self) internal pure {
+    function lt(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
+        ret = mem;
+        stor = store;
+        ct = ctx;
         uint256 a = self.pop();
         uint256 b = self.pop();
         bool c = a < b;
@@ -270,9 +319,13 @@ library MathOps {
             d := c
         }
         self.unsafe_push(d);
+        s = self;
     }
 
-    function gt(Stack self) internal pure {
+    function gt(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
+        ret = mem;
+        stor = store;
+        ct = ctx;
         uint256 a = self.pop();
         uint256 b = self.pop();
         bool c = a > b;
@@ -283,7 +336,10 @@ library MathOps {
         self.unsafe_push(d);
     }
 
-    function slt(Stack self) internal pure {
+    function slt(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
+        ret = mem;
+        stor = store;
+        ct = ctx;
         int256 a = int256(self.pop());
         int256 b = int256(self.pop());
         bool c = a < b;
@@ -292,9 +348,13 @@ library MathOps {
             d := c
         }
         self.unsafe_push(d);
+        s = self;
     }
 
-    function sgt(Stack self) internal pure {
+    function sgt(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
+        ret = mem;
+        stor = store;
+        ct = ctx;
         int256 a = int256(self.pop());
         int256 b = int256(self.pop());
         bool c = a > b;
@@ -303,9 +363,10 @@ library MathOps {
             d := c
         }
         self.unsafe_push(d);
+        s = self;
     }
 
-    function eq(Stack self) internal pure {
+    function eq(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
         uint256 a = self.pop();
         uint256 b = self.pop();
         bool c = a == b;
@@ -314,14 +375,22 @@ library MathOps {
             d := c
         }
         self.unsafe_push(d);
+        s = self;
     }
 
-    function iszero(Stack self) internal pure {
+    function iszero(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
+        ret = mem;
+        stor = store;
+        ct = ctx;
         uint256 a = self.pop();
         self.unsafe_push(a == 0 ? 1 : 0);
+        s = self;
     }
 
-    function signextend(Stack self) internal pure {
+    function signextend(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
+        ret = mem;
+        stor = store;
+        ct = ctx;
         uint256 b = self.pop();
         uint256 x = self.pop();
         uint256 c;
@@ -329,36 +398,56 @@ library MathOps {
             c := signextend(b, x)
         }
         self.unsafe_push(c);
+        s = self;
     }
 }
 
 library BinOps {
     using StackLib for Stack;
 
-    function and(Stack self) internal pure {
+    function and(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
+        ret = mem;
+        stor = store;
+        ct = ctx;
         uint256 a = self.pop();
         uint256 b = self.pop();
         self.unsafe_push(a & b);
+        s = self;
     }
 
-    function or(Stack self) internal pure {
+    function or(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
+        ret = mem;
+        stor = store;
+        ct = ctx;
         uint256 a = self.pop();
         uint256 b = self.pop();
         self.unsafe_push(a | b);
+        s = self;
     }
 
-    function xor(Stack self) internal pure {
+    function xor(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
+        ret = mem;
+        stor = store;
+        ct = ctx;
         uint256 a = self.pop();
         uint256 b = self.pop();
         self.unsafe_push(a ^ b);
+        s = self;
     }
 
-    function not(Stack self) internal pure {
+    function not(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
+        ret = mem;
+        stor = store;
+        ct = ctx;
         uint256 a = self.pop();
         self.unsafe_push(~a);
+        s = self;
     }
 
-    function _byte(Stack self) internal pure {
+    function _byte(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
+        ret = mem;
+        stor = store;
+        ct = ctx;
         uint256 i = self.pop();
         uint256 x = self.pop();
         uint256 c;
@@ -366,39 +455,59 @@ library BinOps {
             c := byte(i, x)
         }
         self.unsafe_push(c);
+        s = self;
     }
 
-    function shl(Stack self) internal pure {
+    function shl(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
+        ret = mem;
+        stor = store;
+        ct = ctx;
         uint256 shift = self.pop();
         uint256 value = self.pop();
         self.unsafe_push(value << shift);
+        s = self;
     }
 
-    function shr(Stack self) internal pure {
+    function shr(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
+        ret = mem;
+        stor = store;
+        ct = ctx;
         uint256 shift = self.pop();
         uint256 value = self.pop();
         self.unsafe_push(value >> shift);
+        s = self;
     }
 
-    function sar(Stack self) internal pure {
+    function sar(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct){
+        ret = mem;
+        stor = store;
+        ct = ctx;
         uint256 shift = self.pop();
         int256 value = int256(self.pop());
         self.unsafe_push(uint256(value >> shift));
+        s = self;
     }
 }
 
 library Builtins {
     using StackLib for Stack;
     using MemoryLib for Memory;
-    function _sha3(Stack self, Memory mem) internal pure {
+    function _sha3(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
         uint256 offset = self.pop();
         uint256 value = self.pop();
         uint256 hash = mem._sha3(offset, value);
         self.unsafe_push(hash);
+        s = self;
+        ret = mem;
+        stor = store;
+        ct = ctx;
     }
 
-    function _gas(Stack self) internal view returns (Stack s) {
+    function _gas(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
         s = self.push(gasleft(), 0);
+        ret = mem;
+        stor = store;
+        ct = ctx;
     }
 
     // function jumpdest(Stack self) internal pure returns (Stack s) {
