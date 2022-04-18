@@ -135,25 +135,14 @@ library EvmLib {
             }
 
             // we only use the optable for opcodes <= 0x5a, so try to short circuit
-            if (op <= 0x5a) {
-                if (op == 0x56) {
-                    // jump
-                    i = stack.pop();
-                    // check for jumpdest
-                    assembly ("memory-safe") {
-                        op := shr(248, mload(add(add(0x20, bytecode), i)))
-                    }
-                    if (op != 0x5b) {
-                        ret = "invalid jump";
-                        success = false;
-                        break;
-                    }
-                } else if (op == 0x57) {
-                    // jumpi
-                    uint256 jump_loc = stack.pop();
-                    uint256 b = stack.pop();
-                    if (b != 0) {
-                        i = jump_loc;
+            if (op == 0) {
+                // STOP
+                break;
+            } else if (op <= 0x5a) {
+                if (op >= 0x56 && op <= 0x58) {
+                    if (op == 0x56) {
+                        // jump
+                        i = stack.pop();
                         // check for jumpdest
                         assembly ("memory-safe") {
                             op := shr(248, mload(add(add(0x20, bytecode), i)))
@@ -163,34 +152,47 @@ library EvmLib {
                             success = false;
                             break;
                         }
-                    }
+                    } else if (op == 0x57) {
+                        // jumpi
+                        uint256 jump_loc = stack.pop();
+                        uint256 b = stack.pop();
+                        if (b != 0) {
+                            i = jump_loc;
+                            // check for jumpdest
+                            assembly ("memory-safe") {
+                                op := shr(248, mload(add(add(0x20, bytecode), i)))
+                            }
+                            if (op != 0x5b) {
+                                ret = "invalid jump";
+                                success = false;
+                                break;
+                            }
+                        }
+                    } else {
+                        // pc, 0x58
+                        stack = stack.push(i, 0);
+                    } 
                 } else if (op == 0x38) {
                     // codesize
                     stack = stack.push(bytecode.length, 0);
                 } else if (op == 0x39) {
                     // codecopy
                     codecopy(stack, mem, bytecode);
-                } else if (op == 0x58) {
-                    // pc
-                    stack = stack.push(i, 0);
                 } else {
                     // any op not specifically handled
                     (stack, mem, store, ctx) = intoOp(ops.unsafe_get(op))(mem, stack, store, ctx);
                 }
-            } else if (op >= 0x60 && op <= 0x7F) {
+            } else if (op <= 0x7F) {
                 // pushN
                 (stack, i) = push(stack, bytecode, op, i);
-            } else if (op >= 0x80 && op <= 0x8F) {
+            } else if (op <= 0x8F) {
                 // dupN
                 uint256 index = op - 0x7F;
                 stack = stack.dup(index);
-            } else if (op >= 0x90 && op <= 0x9F) {
+            } else if (op <= 0x9F) {
                 // swapN
                 uint256 index = op - 0x8F;
                 stack.swap(index);
-            } else if (op == 0) {
-                // STOP
-                break;
             } else if (op == 0xF3) {
                 // return
                 ret = stack._return(mem);
