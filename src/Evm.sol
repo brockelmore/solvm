@@ -63,9 +63,9 @@ library EvmLib {
         ops.unsafe_set(0x18, intoPtr(BinOps.xor));
         ops.unsafe_set(0x19, intoPtr(BinOps.not));
         ops.unsafe_set(0x1a, intoPtr(BinOps._byte));
-        ops.unsafe_set(0x1b, intoPtr(BinOps.not));
-        ops.unsafe_set(0x1c, intoPtr(BinOps.not));
-        ops.unsafe_set(0x1d, intoPtr(BinOps.not));
+        ops.unsafe_set(0x1b, intoPtr(BinOps.shl));
+        ops.unsafe_set(0x1c, intoPtr(BinOps.shr));
+        ops.unsafe_set(0x1d, intoPtr(BinOps.sar));
 
         ops.unsafe_set(0x20, intoPtr(Builtins._sha3));
 
