@@ -3,6 +3,7 @@ pragma solidity >=0.8.13 <0.9.0;
 import "./Stack.sol";
 import "./Memory.sol";
 import "./Storage.sol";
+import "./EvmContext.sol";
 import "memmove/Array.sol";
 import "memmove/Mapping.sol";
 

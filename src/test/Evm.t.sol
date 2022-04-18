@@ -2,9 +2,10 @@
 pragma solidity 0.8.13;
 
 import "ds-test/test.sol";
-import "../Evm.sol";
 import "forge-std/Vm.sol";
 import "memmove/Mapping.sol";
+
+import "../Evm.sol";
 
 contract EvmTest is DSTest {
     Vm vm = Vm(HEVM_ADDRESS);
