@@ -7,6 +7,42 @@ import "memmove/Mapping.sol";
 
 import "../Evm.sol";
 
+contract Sizing {
+    using EvmLib for Evm;
+
+    function run(
+        address origin,
+        address caller,
+        address execution_address,
+        bytes calldata calld,
+        bytes calldata executionCode
+    ) external {
+        uint256 fee;
+        uint256 id;
+        assembly("memory-safe") {
+            fee := basefee()
+            id := chainid()
+        }
+        EvmContext memory ctx = EvmContext({
+            origin: origin,
+            caller: caller,
+            execution_address: execution_address,
+            callvalue: 0,
+            coinbase: block.coinbase,
+            timestamp: block.timestamp,
+            number: block.number,
+            gaslimit: block.gaslimit,
+            difficulty: block.difficulty,
+            chainid: id,
+            basefee: fee,
+            balances: MappingLib.newMapping(1),
+            calld: calld
+        });
+        Evm evm = EvmLib.newEvm(ctx);
+        evm.evaluate(executionCode);
+    }
+}
+
 contract EvmTest is DSTest {
     Vm vm = Vm(HEVM_ADDRESS);
 
@@ -34,6 +70,14 @@ contract EvmTest is DSTest {
         (uint256 r) = abi.decode(ret, (uint256));
         assertTrue(succ);
         assertEq(r, 4);
+    }
+
+    function testAddManyMore() public {
+        Evm evm;
+        (bool succ, bytes memory ret) = evm.evaluate(hex"600160010160010160010160010160010160010160010160010160010160010160010160010160010160010160010160010160010160010160010160010160010160010160010160010160010160010160010160010160010160010160010160010160010160010160010160010160010160010160010160005260206000F3", 2, 0, 1);
+        (uint256 r) = abi.decode(ret, (uint256));
+        assertTrue(succ);
+        assertEq(r, 40);
     }
 
     function testMul() public {
@@ -107,7 +151,7 @@ contract EvmTest is DSTest {
         bytes memory bytecode = hex"32600052336020523060405234606052416080524260a0524360c0524560e0524461010052466101205248610140526101606000F3";
 
 
-        (bool succ, bytes memory ret) = evm.evaluate(bytecode, 10, 0, 10);
+        (bool succ, bytes memory ret) = evm.evaluate(bytecode, 2, 0, 10);
         (
             address or,
             address cal,

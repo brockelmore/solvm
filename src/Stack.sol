@@ -59,7 +59,11 @@ library StackLib {
             // set the return ptr
             ret := self
             // check if length == capacity (meaning no more preallocated space)
-            switch eq(mload(self), mload(add(0x20, self))) 
+            let len := mload(self)
+            let capPtr := add(0x20, self)
+            let cap := mload(capPtr)
+            let freememptr := mload(0x40)
+            switch eq(len, cap) 
             case 1 {
                 // optimization: check if the free memory pointer is equal to the end of the preallocated space
                 // if it is, we can just natively extend the Stack because nothing has been allocated *after*
@@ -69,69 +73,70 @@ library StackLib {
                 //
                 // optimization 2: length == capacity in this case (per above) so we can avoid an add to look at capacity
                 // to calculate where the last element it
-                switch eq(mload(0x40), add(self, mul(add(0x02, mload(self)), 0x20))) 
+                let stack_size := mul(cap, 0x20)
+                let endPtr := add(capPtr, stack_size)
+                switch eq(freememptr, endPtr) 
                 case 1 {
                     // the free memory pointer hasn't moved, i.e. free_mem_ptr == Stack.lastElement, just extend
 
                     // Add 1 to the Stack.capacity
-                    mstore(add(0x20, self), add(0x01, mload(add(0x20, self))))
+                    mstore(capPtr, add(0x01, cap))
 
                     // the free mem ptr is where we want to place the next element
-                    mstore(mload(0x40), elem)
+                    mstore(freememptr, elem)
 
                     // move the free_mem_ptr by a word (32 bytes. 0x20 in hex)
-                    mstore(0x40, add(0x20, mload(0x40)))
+                    mstore(0x40, add(0x20, freememptr))
 
                     // update the length
-                    mstore(self, add(0x01, mload(self)))
+                    mstore(self, add(0x01, len))
                 }
                 default {
                     // we couldn't do the above optimization, use the `identity` precompile to perform a memory move
-                    
+                    // set the return ptr to the new Stack
+                    ret := freememptr
+                    capPtr := add(0x20, ret)
                     // move the Stack to the free mem ptr by using the identity precompile which just returns the values
-                    let Stack_size := mul(add(0x02, mload(self)), 0x20)
                     pop(
                         staticcall(
                             gas(), // pass gas
                             0x04,  // call identity precompile address 
                             self,  // arg offset == pointer to self
-                            Stack_size,  // arg size: capacity + 2 * word_size (we add 2 to capacity to account for capacity and length words)
-                            mload(0x40), // set return buffer to free mem ptr
-                            Stack_size   // identity just returns the bytes of the input so equal to argsize 
+                            stack_size,  // arg size: capacity + 2 * word_size (we add 2 to capacity to account for capacity and length words)
+                            ret, // set return buffer to free mem ptr
+                            stack_size   // identity just returns the bytes of the input so equal to argsize 
                         )
                     )
                     
                     // add the element to the end of the Stack
-                    mstore(add(mload(0x40), Stack_size), elem)
+                    mstore(add(ret, stack_size), elem)
 
                     // add to the capacity
+                    cap := add(add(0x01, overalloc), cap) // add one + overalloc to capacity
                     mstore(
-                        add(0x20, mload(0x40)), // free_mem_ptr + word == new capacity word
-                        add(add(0x01, overalloc), mload(add(0x20, mload(0x40)))) // add one + overalloc to capacity
+                        capPtr, // new capacity ptr
+                        cap
                     )
 
                     // add to length
-                    mstore(mload(0x40), add(0x01, mload(mload(0x40))))
-
-                    // set the return ptr to the new Stack
-                    ret := mload(0x40)
+                    mstore(ret, add(0x01, mload(ret)))
 
                     // update free memory pointer
                     // we also over allocate if requested
-                    mstore(0x40, add(add(Stack_size, add(0x20, mul(overalloc, 0x20))), mload(0x40)))
+                    mstore(0x40, add(0x20, add(capPtr, mul(0x20, cap))))
                 }
             }
             default {
                 // we have capacity for the new element, store it
                 mstore(
-                    // mem_loc := capacity_ptr + (capacity + 2) * 32
+                    // mem_loc := len_ptr + (len + 2) * 32
                     // we add 2 to capacity to acct for capacity and length words, then multiply by element size
-                    add(self, mul(add(0x02, mload(self)), 0x20)), 
+                    add(self, mul(add(0x02, len), 0x20)), 
                     elem
                 )
 
                 // update length
-                mstore(self, add(0x01, mload(self)))
+                mstore(self, add(0x01, len))
             }
         }
         return ret;
@@ -158,26 +163,44 @@ library StackLib {
     function pop(Stack self) internal pure returns (uint256 ret) {
         assembly ("memory-safe") {
             // we only add one to get last element
-            let last := add(self, mul(add(0x01, mload(self)), 0x20))
+            let len := mload(self)
+            let last := add(self, mul(add(0x01, len), 0x20))
             ret := mload(last)
-            mstore(last, 0x00)
-            mstore(self, sub(mload(self), 0x01))
+            mstore(self, sub(len, 0x01))
         }
     }
 
-    function _pop(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct){
-
+    function pop2(Stack self) internal pure returns (uint256 ret1, uint256 ret2) {
         assembly ("memory-safe") {
             // we only add one to get last element
-            let last := add(self, mul(add(0x01, mload(self)), 0x20))
-            mstore(last, 0x00)
-            mstore(self, sub(mload(self), 0x01))
+            let len := mload(self)
+            let last := add(self, mul(add(0x01, len), 0x20))
+            ret1 := mload(last)
+            ret2 := mload(sub(last, 0x20))
+            mstore(self, sub(len, 0x02))
         }
-        s = self;
-        ret = mem;
-        stor = store;
-        ct = ctx;
-        ct = ctx;
+    }
+
+    function pop3(Stack self) internal pure returns (uint256 ret1, uint256 ret2, uint256 ret3) {
+        assembly ("memory-safe") {
+            // we only add one to get last element
+            let len := mload(self)
+            let last := add(self, mul(add(0x01, len), 0x20))
+            ret1 := mload(last)
+            ret2 := mload(sub(last, 0x20))
+            ret3 := mload(sub(last, 0x40))
+            mstore(self, sub(len, 0x03))
+        }
+    }
+
+    function _pop(Memory mem, Stack self, Storage store, bytes32 ctx) internal view returns (Stack, Memory, Storage, bytes32){
+        assembly ("memory-safe") {
+            // we only add one to get last element
+            let len := mload(self)
+            let last := add(self, mul(add(0x01, len), 0x20))
+            mstore(self, sub(len, 0x01))
+        }
+        return (self, mem, store, ctx);
     }
 
     function swap(Stack self, uint256 index) internal pure {
@@ -190,8 +213,6 @@ library StackLib {
             mstore(swap_val, last)
         }
     }
-
-    
 
     function dup(Stack self, uint256 index) internal view returns (Stack s) {
         uint256 val;
@@ -207,309 +228,309 @@ library StackLib {
 
 library MathOps {
     using StackLib for Stack;
-    function add(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
-        ret = mem;
-        stor = store;
-        ct = ctx;
-        uint256 a = self.pop();
-        uint256 b = self.pop();
-        self.unsafe_push(a + b);
-        s = self;
+    function add(Memory mem, Stack self, Storage store, bytes32 ctx) internal view returns (Stack, Memory, Storage, bytes32) {
+        assembly ("memory-safe") {
+            // we only add one to get last element
+            let len := mload(self)
+            let last := add(self, mul(add(0x01, len), 0x20))
+            let target := sub(last, 0x20) 
+            mstore(target, add(mload(last), mload(target)))
+            mstore(self, sub(len, 0x01))
+        }
+        return (self, mem, store, ctx);
     }
 
-    function mul(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
-        ret = mem;
-        stor = store;
-        ct = ctx;
-        uint256 a = self.pop();
-        uint256 b = self.pop();
-        self.unsafe_push(a * b);
-        s = self;
+    function mul(Memory mem, Stack self, Storage store, bytes32 ctx) internal view returns (Stack, Memory, Storage, bytes32) {
+        assembly ("memory-safe") {
+            // we only add one to get last element
+            let len := mload(self)
+            let last := add(self, mul(add(0x01, len), 0x20))
+            let target := sub(last, 0x20) 
+            mstore(target, mul(mload(last), mload(target)))
+            mstore(self, sub(len, 0x01))
+        }
+        return (self, mem, store, ctx);
     }
 
-    function sub(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
-        ret = mem;
-        stor = store;
-        ct = ctx;
-        uint256 a = self.pop();
-        uint256 b = self.pop();
-        self.unsafe_push(a - b);
-        s = self;
+    function sub(Memory mem, Stack self, Storage store, bytes32 ctx) internal view returns (Stack, Memory, Storage, bytes32) {
+        assembly ("memory-safe") {
+            // we only add one to get last element
+            let len := mload(self)
+            let last := add(self, mul(add(0x01, len), 0x20))
+            let target := sub(last, 0x20) 
+            mstore(target, sub(mload(last), mload(target)))
+            mstore(self, sub(len, 0x01))
+        }
+        return (self, mem, store, ctx);
     }
 
-    function div(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
-        ret = mem;
-        stor = store;
-        ct = ctx;
-        uint256 a = self.pop();
-        uint256 b = self.pop();
-        self.unsafe_push(a / b);
-        s = self;
+    function div(Memory mem, Stack self, Storage store, bytes32 ctx) internal view returns (Stack, Memory, Storage, bytes32) {
+        assembly ("memory-safe") {
+            // we only add one to get last element
+            let len := mload(self)
+            let last := add(self, mul(add(0x01, len), 0x20))
+            let target := sub(last, 0x20) 
+            mstore(target, div(mload(last), mload(target)))
+            mstore(self, sub(len, 0x01))
+        }
+        return (self, mem, store, ctx);
     }
 
-    function sdiv(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
-        ret = mem;
-        stor = store;
-        ct = ctx;
-        int256 a = int256(self.pop());
-        int256 b = int256(self.pop());
+    function sdiv(Memory mem, Stack self, Storage store, bytes32 ctx) internal view returns (Stack, Memory, Storage, bytes32) {
+        (uint256 inv_a, uint256 inv_b) = self.pop2();
+        int256 a = int256(inv_a);
+        int256 b = int256(inv_b);
         self.unsafe_push(uint256(a / b));
-        s = self;
+        return (self, mem, store, ctx);
     }
 
-    function mod(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
-        ret = mem;
-        stor = store;
-        ct = ctx;
-        uint256 a = self.pop();
-        uint256 b = self.pop();
-        self.unsafe_push(a % b);
-        s = self;
+    function mod(Memory mem, Stack self, Storage store, bytes32 ctx) internal view returns (Stack, Memory, Storage, bytes32) {
+        assembly ("memory-safe") {
+            // we only add one to get last element
+            let len := mload(self)
+            let last := add(self, mul(add(0x01, len), 0x20))
+            let target := sub(last, 0x20) 
+            mstore(target, mod(mload(last), mload(target)))
+            mstore(self, sub(len, 0x01))
+        }
+        return (self, mem, store, ctx);
     }
 
-    function smod(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
-        ret = mem;
-        stor = store;
-        ct = ctx;
-        int256 a = int256(self.pop());
-        int256 b = int256(self.pop());
+    function smod(Memory mem, Stack self, Storage store, bytes32 ctx) internal view returns (Stack, Memory, Storage, bytes32) {
+        (uint256 inv_a, uint256 inv_b) = self.pop2();
+        int256 a = int256(inv_a);
+        int256 b = int256(inv_b);
         self.unsafe_push(uint256(a % b));
-        s = self;
+        return (self, mem, store, ctx);
     }
 
-    function _addmod(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
-        ret = mem;
-        stor = store;
-        ct = ctx;
-        uint256 a = self.pop();
-        uint256 b = self.pop();
-        uint256 N = self.pop();
-        self.unsafe_push(addmod(a, b, N));
-        s = self;
+    function _addmod(Memory mem, Stack self, Storage store, bytes32 ctx) internal view returns (Stack, Memory, Storage, bytes32) {
+        assembly ("memory-safe") {
+            // we only add one to get last element
+            let len := mload(self)
+            let a := add(self, mul(add(0x01, len), 0x20))
+            let b := sub(a, 0x20)
+            let target := sub(a, 0x40)
+            mstore(target, addmod(mload(a), mload(b), mload(target)))
+            mstore(self, sub(len, 0x02))
+        }
+        return (self, mem, store, ctx);
     }
 
-    function _mulmod(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
-        ret = mem;
-        stor = store;
-        ct = ctx;
-        uint256 a = self.pop();
-        uint256 b = self.pop();
-        uint256 N = self.pop();
-        self.unsafe_push(mulmod(a, b, N));
-        s = self;
+    function _mulmod(Memory mem, Stack self, Storage store, bytes32 ctx) internal view returns (Stack, Memory, Storage, bytes32) {
+        assembly ("memory-safe") {
+            // we only add one to get last element
+            let len := mload(self)
+            let a := add(self, mul(add(0x01, len), 0x20))
+            let b := sub(a, 0x20)
+            let target := sub(a, 0x40)
+            mstore(target, mulmod(mload(a), mload(b), mload(target)))
+            mstore(self, sub(len, 0x02))
+        }
+        return (self, mem, store, ctx);
     }
 
-    function _exp(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
-        ret = mem;
-        stor = store;
-        ct = ctx;
-        uint256 a = self.pop();
-        uint256 exponent = self.pop();
-        self.unsafe_push(a**exponent);
-        s = self;
+    function _exp(Memory mem, Stack self, Storage store, bytes32 ctx) internal view returns (Stack, Memory, Storage, bytes32) {
+        assembly ("memory-safe") {
+            // we only add one to get last element
+            let len := mload(self)
+            let last := add(self, mul(add(0x01, len), 0x20))
+            let target := sub(last, 0x20) 
+            mstore(target, exp(mload(last), mload(target)))
+            mstore(self, sub(len, 0x01))
+        }
+        return (self, mem, store, ctx);
     }
 
-    function lt(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
-        ret = mem;
-        stor = store;
-        ct = ctx;
-        uint256 a = self.pop();
-        uint256 b = self.pop();
+    function lt(Memory mem, Stack self, Storage store, bytes32 ctx) internal view returns (Stack, Memory, Storage, bytes32) {
+        assembly ("memory-safe") {
+            // we only add one to get last element
+            let len := mload(self)
+            let last := add(self, mul(add(0x01, len), 0x20))
+            let target := sub(last, 0x20) 
+            mstore(target, lt(mload(last), mload(target)))
+            mstore(self, sub(len, 0x01))
+        }
+        return (self, mem, store, ctx);
+    }
+
+    function gt(Memory mem, Stack self, Storage store, bytes32 ctx) internal view returns (Stack, Memory, Storage, bytes32) {
+        assembly ("memory-safe") {
+            // we only add one to get last element
+            let len := mload(self)
+            let last := add(self, mul(add(0x01, len), 0x20))
+            let target := sub(last, 0x20) 
+            mstore(target, gt(mload(last), mload(target)))
+            mstore(self, sub(len, 0x01))
+        }
+        return (self, mem, store, ctx);
+    }
+
+    function slt(Memory mem, Stack self, Storage store, bytes32 ctx) internal view returns (Stack, Memory, Storage, bytes32) {
+        (uint256 inv_a, uint256 inv_b) = self.pop2();
+        int256 a = int256(inv_a);
+        int256 b = int256(inv_b);
         bool c = a < b;
         uint256 d;
         assembly ("memory-safe") {
             d := c
         }
         self.unsafe_push(d);
-        s = self;
+        return (self, mem, store, ctx);
     }
 
-    function gt(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
-        ret = mem;
-        stor = store;
-        ct = ctx;
-        uint256 a = self.pop();
-        uint256 b = self.pop();
+    function sgt(Memory mem, Stack self, Storage store, bytes32 ctx) internal view returns (Stack, Memory, Storage, bytes32) {
+        (uint256 inv_a, uint256 inv_b) = self.pop2();
+        int256 a = int256(inv_a);
+        int256 b = int256(inv_b);
         bool c = a > b;
         uint256 d;
         assembly ("memory-safe") {
             d := c
         }
         self.unsafe_push(d);
+        return (self, mem, store, ctx);
     }
 
-    function slt(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
-        ret = mem;
-        stor = store;
-        ct = ctx;
-        int256 a = int256(self.pop());
-        int256 b = int256(self.pop());
-        bool c = a < b;
-        uint256 d;
+    function eq(Memory mem, Stack self, Storage store, bytes32 ctx) internal view returns (Stack, Memory, Storage, bytes32) {
         assembly ("memory-safe") {
-            d := c
+            // we only add one to get last element
+            let len := mload(self)
+            let last := add(self, mul(add(0x01, len), 0x20))
+            let target := sub(last, 0x20) 
+            mstore(target, eq(mload(last), mload(target)))
+            mstore(self, sub(len, 0x01))
         }
-        self.unsafe_push(d);
-        s = self;
+        return (self, mem, store, ctx);
     }
 
-    function sgt(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
-        ret = mem;
-        stor = store;
-        ct = ctx;
-        int256 a = int256(self.pop());
-        int256 b = int256(self.pop());
-        bool c = a > b;
-        uint256 d;
+    function iszero(Memory mem, Stack self, Storage store, bytes32 ctx) internal view returns (Stack, Memory, Storage, bytes32) {
         assembly ("memory-safe") {
-            d := c
+            // we only add one to get last element
+            let len := mload(self)
+            let last := add(self, mul(add(0x01, len), 0x20))
+            mstore(last, iszero(mload(last)))
         }
-        self.unsafe_push(d);
-        s = self;
+        return (self, mem, store, ctx);
     }
 
-    function eq(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
-        uint256 a = self.pop();
-        uint256 b = self.pop();
-        bool c = a == b;
-        uint256 d;
-        assembly ("memory-safe") {
-            d := c
-        }
-        self.unsafe_push(d);
-        s = self;
-    }
-
-    function iszero(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
-        ret = mem;
-        stor = store;
-        ct = ctx;
-        uint256 a = self.pop();
-        self.unsafe_push(a == 0 ? 1 : 0);
-        s = self;
-    }
-
-    function signextend(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
-        ret = mem;
-        stor = store;
-        ct = ctx;
-        uint256 b = self.pop();
-        uint256 x = self.pop();
+    function signextend(Memory mem, Stack self, Storage store, bytes32 ctx) internal view returns (Stack, Memory, Storage, bytes32) {
+        (uint256 b, uint256 x) = self.pop2();
         uint256 c;
         assembly ("memory-safe") {
             c := signextend(b, x)
         }
         self.unsafe_push(c);
-        s = self;
+        return (self, mem, store, ctx);
     }
 }
 
 library BinOps {
     using StackLib for Stack;
 
-    function and(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
-        ret = mem;
-        stor = store;
-        ct = ctx;
-        uint256 a = self.pop();
-        uint256 b = self.pop();
-        self.unsafe_push(a & b);
-        s = self;
-    }
-
-    function or(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
-        ret = mem;
-        stor = store;
-        ct = ctx;
-        uint256 a = self.pop();
-        uint256 b = self.pop();
-        self.unsafe_push(a | b);
-        s = self;
-    }
-
-    function xor(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
-        ret = mem;
-        stor = store;
-        ct = ctx;
-        uint256 a = self.pop();
-        uint256 b = self.pop();
-        self.unsafe_push(a ^ b);
-        s = self;
-    }
-
-    function not(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
-        ret = mem;
-        stor = store;
-        ct = ctx;
-        uint256 a = self.pop();
-        self.unsafe_push(~a);
-        s = self;
-    }
-
-    function _byte(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
-        ret = mem;
-        stor = store;
-        ct = ctx;
-        uint256 i = self.pop();
-        uint256 x = self.pop();
-        uint256 c;
+    function and(Memory mem, Stack self, Storage store, bytes32 ctx) internal view returns (Stack, Memory, Storage, bytes32) {
         assembly ("memory-safe") {
-            c := byte(i, x)
+            // we only add one to get last element
+            let len := mload(self)
+            let last := add(self, mul(add(0x01, len), 0x20))
+            let target := sub(last, 0x20) 
+            mstore(target, and(mload(last), mload(target)))
+            mstore(self, sub(len, 0x01))
         }
-        self.unsafe_push(c);
-        s = self;
+        return (self, mem, store, ctx);
     }
 
-    function shl(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
-        ret = mem;
-        stor = store;
-        ct = ctx;
-        uint256 shift = self.pop();
-        uint256 value = self.pop();
-        self.unsafe_push(value << shift);
-        s = self;
+    function or(Memory mem, Stack self, Storage store, bytes32 ctx) internal view returns (Stack, Memory, Storage, bytes32) {
+        assembly ("memory-safe") {
+            // we only add one to get last element
+            let len := mload(self)
+            let last := add(self, mul(add(0x01, len), 0x20))
+            let target := sub(last, 0x20) 
+            mstore(target, or(mload(last), mload(target)))
+            mstore(self, sub(len, 0x01))
+        }
+        return (self, mem, store, ctx);
     }
 
-    function shr(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
-        ret = mem;
-        stor = store;
-        ct = ctx;
-        uint256 shift = self.pop();
-        uint256 value = self.pop();
-        self.unsafe_push(value >> shift);
-        s = self;
+    function xor(Memory mem, Stack self, Storage store, bytes32 ctx) internal view returns (Stack, Memory, Storage, bytes32) {
+        assembly ("memory-safe") {
+            // we only add one to get last element
+            let len := mload(self)
+            let last := add(self, mul(add(0x01, len), 0x20))
+            let target := sub(last, 0x20) 
+            mstore(target, xor(mload(last), mload(target)))
+            mstore(self, sub(len, 0x01))
+        }
+        return (self, mem, store, ctx);
     }
 
-    function sar(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct){
-        ret = mem;
-        stor = store;
-        ct = ctx;
-        uint256 shift = self.pop();
-        int256 value = int256(self.pop());
+    function not(Memory mem, Stack self, Storage store, bytes32 ctx) internal view returns (Stack, Memory, Storage, bytes32) {
+        assembly ("memory-safe") {
+            // we only add one to get last element
+            let len := mload(self)
+            let target := add(self, mul(add(0x01, len), 0x20))
+            mstore(target, not(mload(target)))
+        }
+        return (self, mem, store, ctx);
+    }
+
+    function _byte(Memory mem, Stack self, Storage store, bytes32 ctx) internal view returns (Stack, Memory, Storage, bytes32) {
+        assembly ("memory-safe") {
+            // we only add one to get last element
+            let len := mload(self)
+            let last := add(self, mul(add(0x01, len), 0x20))
+            let target := sub(last, 0x20) 
+            mstore(target, byte(mload(last), mload(target)))
+            mstore(self, sub(len, 0x01))
+        }
+        return (self, mem, store, ctx);
+    }
+
+    function shl(Memory mem, Stack self, Storage store, bytes32 ctx) internal view returns (Stack, Memory, Storage, bytes32) {
+        assembly ("memory-safe") {
+            // we only add one to get last element
+            let len := mload(self)
+            let last := add(self, mul(add(0x01, len), 0x20))
+            let target := sub(last, 0x20) 
+            mstore(target, shl(mload(last), mload(target)))
+            mstore(self, sub(len, 0x01))
+        }
+        return (self, mem, store, ctx);
+    }
+
+    function shr(Memory mem, Stack self, Storage store, bytes32 ctx) internal view returns (Stack, Memory, Storage, bytes32) {
+        assembly ("memory-safe") {
+            // we only add one to get last element
+            let len := mload(self)
+            let last := add(self, mul(add(0x01, len), 0x20))
+            let target := sub(last, 0x20) 
+            mstore(target, shr(mload(last), mload(target)))
+            mstore(self, sub(len, 0x01))
+        }
+        return (self, mem, store, ctx);
+    }
+
+    function sar(Memory mem, Stack self, Storage store, bytes32 ctx) internal view returns (Stack, Memory, Storage, bytes32){
+        (uint256 shift, uint256 inv_value) = self.pop2();
+        int256 value = int256(inv_value);
         self.unsafe_push(uint256(value >> shift));
-        s = self;
+        return (self, mem, store, ctx);
     }
 }
 
 library Builtins {
     using StackLib for Stack;
     using MemoryLib for Memory;
-    function _sha3(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
-        uint256 offset = self.pop();
-        uint256 value = self.pop();
+    function _sha3(Memory mem, Stack self, Storage store, bytes32 ctx) internal view returns (Stack, Memory, Storage, bytes32) {
+        (uint256 offset, uint256 value) = self.pop2();
         uint256 hash = mem._sha3(offset, value);
         self.unsafe_push(hash);
-        s = self;
-        ret = mem;
-        stor = store;
-        ct = ctx;
+        return (self, mem, store, ctx);
     }
 
-    function _gas(Memory mem, Stack self, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
-        s = self.push(gasleft(), 0);
-        ret = mem;
-        stor = store;
-        ct = ctx;
+    function _gas(Memory mem, Stack self, Storage store, bytes32 ctx) internal view returns (Stack, Memory, Storage, bytes32) {
+        self = self.push(gasleft(), 0);
+        return (self, mem, store, ctx);
     }
 }
 
@@ -517,8 +538,8 @@ library ControlFlow {
     using StackLib for Stack;
     using MemoryLib for Memory;
     function _return(Stack self, Memory mem) internal pure returns (bytes memory ret) {
-        uint256 offset = self.pop() + mem.loc();
-        uint256 size = self.pop();
+        (uint256 offset, uint256 size) = self.pop2();
+        offset += mem.loc();
         assembly ("memory-safe") {
             ret := sub(offset, 0x20)
             mstore(ret, size)
@@ -526,8 +547,8 @@ library ControlFlow {
     }
 
     function _revert(Stack self, Memory mem) internal pure returns (bytes memory ret) {
-        uint256 offset = self.pop() + mem.loc();
-        uint256 size = self.pop();
+        (uint256 offset, uint256 size) = self.pop2();
+        offset += mem.loc();
         assembly ("memory-safe") {
             ret := sub(offset, 0x20)
             mstore(ret, size)

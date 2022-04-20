@@ -18,25 +18,19 @@ library StorageLib {
         m = Storage.wrap(Mapping.unwrap(map));
     }
 
-    function sload(Memory mem, Stack stack, Storage self, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct)  {
-        ret = mem;
-        s = stack;
-        ct = ctx;
+    function sload(Memory mem, Stack stack, Storage self, bytes32 ctx) internal view returns (Stack, Memory, Storage, bytes32)  {
         Mapping map = Mapping.wrap(Storage.unwrap(self));
         uint256 key = stack.pop();
         (, uint256 value) = map.get(bytes32(key));
         stack.unsafe_push(value);
-        stor = self;
+        return (stack, mem, self, ctx);
     }
 
-    function sstore(Memory mem, Stack stack, Storage self, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
-        ret = mem;
-        s = stack;
-        ct = ctx;
+    function sstore(Memory mem, Stack stack, Storage self, bytes32 ctx) internal view returns (Stack, Memory, Storage, bytes32) {
         Mapping map = Mapping.wrap(Storage.unwrap(self));
         uint256 key = stack.pop();
         uint256 value = stack.pop();
         map.insert(bytes32(key), value);
-        stor = self;
+        return (stack, mem, self, ctx);
     }
 }

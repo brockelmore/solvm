@@ -40,35 +40,34 @@ library MemoryLib {
         }
     }
 
-    function msize(Memory self, Stack stack, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
-        ret = self;
-        stor = store;
-        ct = ctx;
-        s = stack.push(msize_internal(self), 0);
+    function msize(Memory self, Stack stack, Storage store, bytes32 ctx) internal view returns (Stack, Memory, Storage, bytes32) {
+        Stack s = stack.push(msize_internal(self), 0);
+        return (s, self, store, ctx);
     }
 
-    function mload(Memory self, Stack stack, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
-        stor = store;
-        uint256 offset = stack.pop() + loc(self);
-        uint256 word;
+    function mload(Memory self, Stack stack, Storage store, bytes32 ctx) internal view returns (Stack, Memory, Storage, bytes32) {
         assembly ("memory-safe") {
-            word := mload(offset)
+            // we only add one to get last element
+            let len := mload(stack)
+            let target := add(stack, mul(add(0x01, len), 0x20))
+            mstore(target, add(mload(target), and(ptr_mask, self)))
         }
-        s = stack.push(word, 0);
-        ret = self;
-        ct = ctx;
+        return (stack, self, store, ctx);
     }
 
-    function mstore(Memory self, Stack stack, Storage store, EvmContext memory ctx) internal view returns (Stack s, Memory ret, Storage stor, EvmContext memory ct) {
-        stor = store;
-        ct = ctx;
-        uint256 offset = stack.pop() + loc(self);
-        uint256 elem = stack.pop();
-        uint256 endLoc = end(self);
-        s = stack;
+    function mstore(Memory self, Stack stack, Storage store, bytes32 ctx) internal view returns (Stack, Memory, Storage, bytes32) {
+        // set the return ptr
+        Memory ret = self;
+
         assembly ("memory-safe") {
-            // set the return ptr
-            ret := self
+            let ptr := and(ptr_mask, self)
+            let endLoc := add(ptr, shr(171, shl(86, self)))
+            let len := mload(stack)
+            let last := add(stack, mul(add(0x01, len), 0x20))
+            let offset := add(ptr, mload(last))
+            let elem := mload(sub(last, 0x20)) 
+            mstore(stack, sub(len, 0x02))
+
             // check if offset > capacity (meaning no more preallocated space)
             switch gt(offset, endLoc) 
             case 1 {
@@ -136,6 +135,7 @@ library MemoryLib {
                 )
             }
         }
+        return (stack, self, store, ctx);
     }
 
     function _sha3(Memory self, uint256 offset, uint256 size) internal pure returns (uint256 ret) {

@@ -99,6 +99,101 @@ library EvmLib {
         ops.unsafe_set(0x5a, intoPtr(Builtins._gas));
     }
 
+    function setupCompressedOpTable() internal view returns (Array ops) {
+        // only use 16 bits 
+        ops = ArrayLib.newArray(6);
+        // set capacity
+        assembly ("memory-safe") {
+            mstore(ops, 6)
+        }
+
+        // The internal function dispatch table works by reference.
+        // since we reference pop first, it gets referenceId 1 so it will be most optimized
+        uint256 fifth = 0;
+        fifth = compress(fifth, 0x50, intoPtr(StackLib._pop));
+
+        fifth = compress(fifth, 0x51, intoPtr(MemoryLib.mload));
+        fifth = compress(fifth, 0x52, intoPtr(MemoryLib.mstore));
+
+        uint256 zeroth;
+        zeroth = compress(zeroth, 0x01, intoPtr(MathOps.add));
+        zeroth = compress(zeroth, 0x02, intoPtr(MathOps.mul));
+        zeroth = compress(zeroth, 0x03, intoPtr(MathOps.sub));
+        zeroth = compress(zeroth, 0x04, intoPtr(MathOps.div));
+        zeroth = compress(zeroth, 0x05, intoPtr(MathOps.sdiv));
+        zeroth = compress(zeroth, 0x06, intoPtr(MathOps.mod));
+        zeroth = compress(zeroth, 0x07, intoPtr(MathOps.smod));
+        zeroth = compress(zeroth, 0x08, intoPtr(MathOps._addmod));
+        zeroth = compress(zeroth, 0x09, intoPtr(MathOps._mulmod));
+        zeroth = compress(zeroth, 0x0a, intoPtr(MathOps._exp));
+        zeroth = compress(zeroth, 0x0b, intoPtr(MathOps.signextend));
+        ops.unsafe_set(0, zeroth);
+
+        uint256 first = 0;
+        first = compress(first, 0x10, intoPtr(MathOps.lt));
+        first = compress(first, 0x11, intoPtr(MathOps.gt));
+        first = compress(first, 0x12, intoPtr(MathOps.slt));
+        first = compress(first, 0x13, intoPtr(MathOps.sgt));
+        first = compress(first, 0x14, intoPtr(MathOps.eq));
+        first = compress(first, 0x15, intoPtr(MathOps.iszero));
+        first = compress(first, 0x16, intoPtr(BinOps.and));
+        first = compress(first, 0x17, intoPtr(BinOps.or));
+        first = compress(first, 0x18, intoPtr(BinOps.xor));
+        first = compress(first, 0x19, intoPtr(BinOps.not));
+        first = compress(first, 0x1a, intoPtr(BinOps._byte));
+        first = compress(first, 0x1b, intoPtr(BinOps.shl));
+        first = compress(first, 0x1c, intoPtr(BinOps.shr));
+        first = compress(first, 0x1d, intoPtr(BinOps.sar));
+        ops.unsafe_set(1, first);
+
+        uint256 second = 0;
+        second = compress(second, 0x20, intoPtr(Builtins._sha3));
+        ops.unsafe_set(2, second);
+
+        uint256 third = 0;
+        // Context
+        third = compress(third, 0x30, intoPtr(EvmContextLib._address));
+        third = compress(third, 0x31, intoPtr(EvmContextLib._balance));
+        third = compress(third, 0x32, intoPtr(EvmContextLib.origin));
+        third = compress(third, 0x33, intoPtr(EvmContextLib.caller));
+        third = compress(third, 0x34, intoPtr(EvmContextLib.callvalue));
+        third = compress(third, 0x35, intoPtr(EvmContextLib.calldataload));
+        third = compress(third, 0x36, intoPtr(EvmContextLib.calldatasize));
+        third = compress(third, 0x37, intoPtr(EvmContextLib.calldatacopy));
+        ops.unsafe_set(3, third);
+
+        uint256 fourth = 0;
+        fourth = compress(fourth, 0x41, intoPtr(EvmContextLib.coinbase));
+        fourth = compress(fourth, 0x42, intoPtr(EvmContextLib.timestamp));
+        fourth = compress(fourth, 0x43, intoPtr(EvmContextLib.number));
+        fourth = compress(fourth, 0x44, intoPtr(EvmContextLib.difficulty));
+        fourth = compress(fourth, 0x45, intoPtr(EvmContextLib.gaslimit));
+        fourth = compress(fourth, 0x46, intoPtr(EvmContextLib.chainid));
+        fourth = compress(fourth, 0x47, intoPtr(EvmContextLib.selfbalance));
+        fourth = compress(fourth, 0x48, intoPtr(EvmContextLib.basefee));
+        ops.unsafe_set(4, fourth);
+
+        
+
+        fifth = compress(fifth, 0x54, intoPtr(StorageLib.sload));
+        fifth = compress(fifth, 0x55, intoPtr(StorageLib.sstore));
+
+        fifth = compress(fifth, 0x5a, intoPtr(Builtins._gas));
+        ops.unsafe_set(5, fifth);
+    }
+
+    function compress(uint256 ptrs, uint256 op, uint256 ptr16bit) internal pure returns (uint256 ps) {
+        uint256 placement = op % 16;
+        ps = ptrs | ptr16bit << (240 - 16*placement);
+    }
+
+    function uncompress(Array combinedPtrs, uint256 op) internal pure returns (uint256 ptr) {
+        uint256 index = op / 16;
+        uint256 placement = op % 16;
+        uint256 ptrs = combinedPtrs.unsafe_get(index);
+        ptr = ptrs << (16*placement) >> 240;
+    }
+
     function context(Evm self) internal pure returns (EvmContext memory ctx) {
         assembly ("memory-safe") {
             ctx := self
@@ -110,9 +205,9 @@ library EvmLib {
     }
 
     function evaluate(Evm self, bytes memory bytecode, uint16 stackSizeHint, uint16 storageSizeHint, uint32 memSizeHint) internal view returns (bool success, bytes memory ret) {
-        Array ops = setupOpTable();
+        Array ops = setupCompressedOpTable();
 
-        EvmContext memory ctx = context(self);
+        bytes32 ctx = Evm.unwrap(self);
 
         // stack capacity unlikely to surpass 32 words
         Stack stack = StackLib.newStack(stackSizeHint);
@@ -126,12 +221,15 @@ library EvmLib {
 
         success = true;
         ret = "";
-        uint256 i = 0;
-
-        while (i < bytecode.length) {
+        uint256 bcodeLen = bytecode.length;
+        uint256 start;
+        assembly ("memory-safe") {
+            start := add(0x20, bytecode)
+        }
+        for (uint256 i; i < bcodeLen; ++i) {
             uint256 op;
             assembly ("memory-safe") {
-                op := shr(248, mload(add(add(0x20, bytecode), i)))
+                op := shr(248, mload(add(start, i)))
             }
 
             // we only use the optable for opcodes <= 0x5a, so try to short circuit
@@ -145,7 +243,7 @@ library EvmLib {
                         i = stack.pop();
                         // check for jumpdest
                         assembly ("memory-safe") {
-                            op := shr(248, mload(add(add(0x20, bytecode), i)))
+                            op := shr(248, mload(add(start, i)))
                         }
                         if (op != 0x5b) {
                             ret = "invalid jump";
@@ -160,7 +258,7 @@ library EvmLib {
                             i = jump_loc;
                             // check for jumpdest
                             assembly ("memory-safe") {
-                                op := shr(248, mload(add(add(0x20, bytecode), i)))
+                                op := shr(248, mload(add(start, i)))
                             }
                             if (op != 0x5b) {
                                 ret = "invalid jump";
@@ -174,17 +272,17 @@ library EvmLib {
                     } 
                 } else if (op == 0x38) {
                     // codesize
-                    stack = stack.push(bytecode.length, 0);
+                    stack = stack.push(bcodeLen, 0);
                 } else if (op == 0x39) {
                     // codecopy
-                    codecopy(stack, mem, bytecode);
+                    codecopy(stack, mem, start);
                 } else {
                     // any op not specifically handled
-                    (stack, mem, store, ctx) = intoOp(ops.unsafe_get(op))(mem, stack, store, ctx);
+                    (stack, mem, store, ctx) = intoOp(uncompress(ops, op))(mem, stack, store, ctx);
                 }
             } else if (op <= 0x7F) {
                 // pushN
-                (stack, i) = push(stack, bytecode, op, i);
+                (stack, i) = push(stack, start, op, i);
             } else if (op <= 0x8F) {
                 // dupN
                 uint256 index = op - 0x7F;
@@ -203,24 +301,24 @@ library EvmLib {
                 success = false;
                 break;
             }
-
-            ++i;
         }
     }
 
-    function codecopy(Stack stack, Memory mem, bytes memory bytecode) internal view {
+    function codecopy(Stack stack, Memory mem, uint256 start) internal view {
         uint256 destOffset = stack.pop();
         uint256 offset = stack.pop();
         uint256 size = stack.pop();
         uint256 ptr_mask = MemoryLib.ptr_mask;
 
         // just use the identity precompile for simplicity
+
+        // TODO: unsafe. fix
         assembly ("memory-safe") {
             pop(
                 staticcall(
                     gas(), // pass gas
                     0x04,  // call identity precompile address 
-                    add(bytecode, offset), // arg offset == pointer to calldata
+                    add(start, offset), // arg offset == pointer to calldata
                     size,  // arg size
                     add(and(mem, ptr_mask), destOffset), // set return buffer to memory ptr + destination offset
                     size   // identity just returns the bytes of the input so equal to argsize 
@@ -229,24 +327,24 @@ library EvmLib {
         }
     }
 
-    function push(Stack self, bytes memory bytecode, uint256 op, uint256 i) internal view returns (Stack s, uint256 j) {
+    function push(Stack self, uint256 start, uint256 op, uint256 i) internal view returns (Stack s, uint256 j) {
         uint256 pushBytes;
         assembly ("memory-safe") {
-            let full_word := mload(add(add(0x20, bytecode), add(i, 0x01)))
-            let size := add(sub(op, 0x60), 0x01)
+            let full_word := mload(add(start, add(i, 0x01)))
+            let size := sub(op, 0x5f)
             j := add(size, i)
             pushBytes := shr(sub(256, mul(size, 8)), full_word)
         }
         s = self.push(pushBytes);
     }
 
-    function intoPtr(function(Memory, Stack, Storage, EvmContext memory) internal view returns (Stack, Memory, Storage, EvmContext memory) op) internal pure returns (uint256 ptr) {
+    function intoPtr(function(Memory, Stack, Storage, bytes32) internal view returns (Stack, Memory, Storage, bytes32) op) internal pure returns (uint256 ptr) {
         assembly ("memory-safe") {
             ptr := op
         }
     }
 
-    function intoOp(uint256 ptr) internal pure returns (function(Memory, Stack, Storage, EvmContext memory) internal view returns (Stack, Memory, Storage, EvmContext memory) op) {
+    function intoOp(uint256 ptr) internal pure returns (function(Memory, Stack, Storage, bytes32) internal view returns (Stack, Memory, Storage, bytes32) op) {
         assembly ("memory-safe") {
             op := ptr
         }
