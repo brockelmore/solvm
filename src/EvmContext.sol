@@ -6,6 +6,8 @@ import "./Storage.sol";
 import "memmove/Array.sol";
 import "memmove/Mapping.sol";
 
+import "forge-std/console2.sol";
+
 struct EvmContext {
     address origin;
     address caller;
@@ -29,6 +31,8 @@ library EvmContextLib {
 
     using ArrayLib for Array;
     using MappingLib for Mapping;
+
+    event Debug(uint256);
 
     function internalOrigin(bytes32 ct) internal pure returns (uint256 addr) {
         assembly ("memory-safe") {
@@ -139,10 +143,16 @@ library EvmContextLib {
     function calldataload(Memory mem, Stack stack, Storage store, bytes32 ct) internal view returns(Stack, Memory, Storage, bytes32) {
         uint256 word;
         uint256 offset = stack.pop();
+        EvmContext memory ctx;
         assembly ("memory-safe") {
-            let calldataPtr := add(ct, 0x180)
-            word := mload(add(calldataPtr, offset))
+            ctx := ct
         }
+
+        bytes memory calld = ctx.calld;
+        assembly ("memory-safe") {
+            word := mload(add(calld, add(offset, 0x20)))
+        }
+
         stack.unsafe_push(word);
         return (stack, mem, store, ct);
     }

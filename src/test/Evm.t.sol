@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.13;
+pragma solidity 0.8.17;
 
 import "ds-test/test.sol";
 import "forge-std/Vm.sol";
@@ -49,17 +49,17 @@ contract EvmTest is DSTest {
     using EvmLib for Evm;
     using MappingLib for Mapping;
 
-    function testPush() public view {
+    function testPush() public {
         Evm evm;
         evm.evaluate(hex"6001", 1, 0, 0);
     }
 
-    function testPop() public view {
+    function testPop() public {
         Evm evm;
         evm.evaluate(hex"600150", 1, 0, 0);
     }
 
-    function testAdd() public view {
+    function testAdd() public {
         Evm evm;
         evm.evaluate(hex"6001600101", 2, 0, 0);
     }
@@ -88,7 +88,7 @@ contract EvmTest is DSTest {
         assertEq(r, 3);
     }
 
-    function testMSTORE() public view {
+    function testMSTORE() public {
         Evm evm;
         evm.evaluate(hex"6001600352", 2, 0, 1);
     }

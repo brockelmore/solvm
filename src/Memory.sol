@@ -138,6 +138,89 @@ library MemoryLib {
         return (stack, self, store, ctx);
     }
 
+    function mstore8(Memory self, Stack stack, Storage store, bytes32 ctx) internal view returns (Stack, Memory, Storage, bytes32) {
+        // set the return ptr
+        Memory ret = self;
+
+        assembly ("memory-safe") {
+            let ptr := and(ptr_mask, self)
+            let endLoc := add(ptr, shr(171, shl(86, self)))
+            let len := mload(stack)
+            let last := add(stack, mul(add(0x01, len), 0x20))
+            let offset := add(ptr, mload(last))
+            let elem := mload(sub(last, 0x20)) 
+            mstore(stack, sub(len, 0x02))
+
+            // check if offset > capacity (meaning no more preallocated space)
+            switch gt(offset, endLoc) 
+            case 1 {
+                // optimization: check if the free memory pointer is equal to the end of the preallocated space
+                // if it is, we can just natively extend the Stack because nothing has been allocated *after*
+                // us. i.e.:
+                // evm_memory = [00...free_mem_ptr...Stack.length...Stack.lastElement]
+                // this check compares free_mem_ptr to Stack.lastElement, if they are equal, we know there is nothing after
+                //
+                switch eq(mload(0x40), endLoc)
+                case 1 {
+                    // the free memory pointer hasn't moved, i.e. free_mem_ptr == Memory.lastElement, just extend
+
+                    // Add a word to the Memory.capacity & Memory.length
+                    let startLoc := and(self, ptr_mask)
+                    endLoc   := offset
+                    let cap := sub(endLoc, startLoc)
+                    ret := or(or(shl(85, cap), shl(170, cap)), startLoc)
+
+                    // the free mem ptr is where we want to place the next element
+                    mstore8(offset, elem)
+
+                    // move the free_mem_ptr by a word (32 bytes. 0x20 in hex)
+                    mstore(0x40, add(endLoc, 0x20))
+                }
+                default {
+                    // we couldn't do the above optimization, use the `identity` precompile to perform a memory move
+                    
+                    // move the Stack to the free mem ptr by using the identity precompile which just returns the values
+                    let curr_loc := and(ptr_mask, self)
+                    let mem_size := sub(endLoc, curr_loc)
+                    pop(
+                        staticcall(
+                            gas(), // pass gas
+                            0x04,  // call identity precompile address 
+                            curr_loc,  // arg offset == pointer to self
+                            mem_size,  // arg size: capacity + 2 * word_size (we add 2 to capacity to account for capacity and length words)
+                            mload(0x40), // set return buffer to free mem ptr
+                            mem_size   // identity just returns the bytes of the input so equal to argsize 
+                        )
+                    )
+                    
+                    // add the element to the end of the Stack
+                    mstore8(
+                        offset, 
+                        elem
+                    )
+
+                    let startLoc := mload(0x40)
+                    endLoc   := offset
+                    let cap := sub(endLoc, startLoc)
+                    ret := or(or(shl(85, cap), shl(170, cap)), startLoc)
+
+                    // update free memory pointer
+                    mstore(0x40, add(endLoc, 0x20))
+                }
+            }
+            default {
+                // we have capacity for the new element, store it
+                mstore8(
+                    // mem_loc := capacity_ptr + (capacity + 2) * 32
+                    // we add 2 to capacity to acct for capacity and length words, then multiply by element size
+                    offset, 
+                    elem
+                )
+            }
+        }
+        return (stack, self, store, ctx);
+    }
+
     function _sha3(Memory self, uint256 offset, uint256 size) internal pure returns (uint256 ret) {
         assembly ("memory-safe") {
             let startLoc := and(ptr_mask, self)

@@ -114,6 +114,7 @@ library EvmLib {
 
         fifth = compress(fifth, 0x51, intoPtr(MemoryLib.mload));
         fifth = compress(fifth, 0x52, intoPtr(MemoryLib.mstore));
+        fifth = compress(fifth, 0x53, intoPtr(MemoryLib.mstore8));
 
         uint256 zeroth;
         zeroth = compress(zeroth, 0x01, intoPtr(MathOps.add));
@@ -200,11 +201,11 @@ library EvmLib {
         }
     }
 
-    function evaluate(Evm self, bytes memory bytecode) internal view returns (bool success, bytes memory ret) {
+    function evaluate(Evm self, bytes memory bytecode) internal returns (bool success, bytes memory ret) {
         (success, ret) = evaluate(self, bytecode, 32, 10, 32);
     }
 
-    function evaluate(Evm self, bytes memory bytecode, uint16 stackSizeHint, uint16 storageSizeHint, uint32 memSizeHint) internal view returns (bool success, bytes memory ret) {
+    function evaluate(Evm self, bytes memory bytecode, uint16 stackSizeHint, uint16 storageSizeHint, uint32 memSizeHint) internal returns (bool success, bytes memory ret) {
         Array ops = setupCompressedOpTable();
 
         bytes32 ctx = Evm.unwrap(self);
@@ -285,7 +286,7 @@ library EvmLib {
                 (stack, i) = push(stack, start, op, i);
             } else if (op <= 0x8F) {
                 // dupN
-                uint256 index = op - 0x7F;
+                uint256 index = op - 0x80;
                 stack = stack.dup(index);
             } else if (op <= 0x9F) {
                 // swapN
@@ -300,18 +301,21 @@ library EvmLib {
                 ret = stack._revert(mem);
                 success = false;
                 break;
+            } else {
+                ret = "invalid op";
+                success = false;
+                break;
             }
         }
     }
 
-    function codecopy(Stack stack, Memory mem, uint256 start) internal view {
+    function codecopy(Stack stack, Memory mem, uint256 start) internal {
         uint256 destOffset = stack.pop();
         uint256 offset = stack.pop();
         uint256 size = stack.pop();
         uint256 ptr_mask = MemoryLib.ptr_mask;
 
         // just use the identity precompile for simplicity
-
         // TODO: unsafe. fix
         assembly ("memory-safe") {
             pop(
@@ -328,6 +332,10 @@ library EvmLib {
     }
 
     function push(Stack self, uint256 start, uint256 op, uint256 i) internal view returns (Stack s, uint256 j) {
+        if (op == 0x5f) {
+            s = self.push(0);
+            return (s, i);
+        }
         uint256 pushBytes;
         assembly ("memory-safe") {
             let full_word := mload(add(start, add(i, 0x01)))

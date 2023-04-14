@@ -209,8 +209,8 @@ library StackLib {
             let to_swap := sub(last, mul(index, 0x20))
             let last_val := mload(last)
             let swap_val := mload(to_swap)
-            mstore(last, to_swap)
-            mstore(swap_val, last)
+            mstore(last, swap_val)
+            mstore(to_swap, last_val)
         }
     }
 

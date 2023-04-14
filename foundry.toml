@@ -5,3 +5,7 @@ libs = ['lib']
 optimizer_runs = 10000000
 viaIR = true
 # See more config options https://github.com/gakonst/foundry/tree/master/config
+gas_reports = ["*"]
+
+[fuzz]
+runs = 100000
