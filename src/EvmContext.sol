@@ -6,8 +6,6 @@ import "./Storage.sol";
 import "memmove/Array.sol";
 import "memmove/Mapping.sol";
 
-import "forge-std/console2.sol";
-
 struct EvmContext {
     address origin;
     address caller;
@@ -31,8 +29,6 @@ library EvmContextLib {
 
     using ArrayLib for Array;
     using MappingLib for Mapping;
-
-    event Debug(uint256);
 
     function internalOrigin(bytes32 ct) internal pure returns (uint256 addr) {
         assembly ("memory-safe") {
