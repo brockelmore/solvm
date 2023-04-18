@@ -101,6 +101,14 @@ contract EvmTest is DSTest {
         assertEq(r, 1);
     }
 
+    function testMsizeInitiallyZero() public {
+        Evm evm;
+        (bool succ, bytes memory ret) = evm.evaluate(hex"5960005260206000f3", 2, 0, 1);
+        assertTrue(succ);
+        (uint256 r) = abi.decode(ret, (uint256));
+        assertEq(r, 0);
+    }
+
     function testCtx() public {
         Mapping balances = MappingLib.newMapping(1);
         balances.insert(bytes32(uint256(0x1339)), 1e18);
@@ -147,7 +155,7 @@ contract EvmTest is DSTest {
         // bytes memory bf    = hex"4861014052";
         // bytes memory retur = hex"6101406000F3";
 
-        
+
         bytes memory bytecode = hex"32600052336020523060405234606052416080524260a0524360c0524560e0524461010052466101205248610140526101606000F3";
 
 
