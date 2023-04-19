@@ -16,7 +16,7 @@ library EvmLib {
     using BinOps for Stack;
     using Builtins for Stack;
     using ControlFlow for Stack;
-    
+
     using MemoryLib for Memory;
 
     using StorageLib for Storage;
@@ -95,12 +95,13 @@ library EvmLib {
 
         ops.unsafe_set(0x54, intoPtr(StorageLib.sload));
         ops.unsafe_set(0x55, intoPtr(StorageLib.sstore));
+        ops.unsafe_set(0x59, intoPtr(MemoryLib.msize));
 
         ops.unsafe_set(0x5a, intoPtr(Builtins._gas));
     }
 
     function setupCompressedOpTable() internal view returns (Array ops) {
-        // only use 16 bits 
+        // only use 16 bits
         ops = ArrayLib.newArray(6);
         // set capacity
         assembly ("memory-safe") {
@@ -174,10 +175,11 @@ library EvmLib {
         fourth = compress(fourth, 0x48, intoPtr(EvmContextLib.basefee));
         ops.unsafe_set(4, fourth);
 
-        
+
 
         fifth = compress(fifth, 0x54, intoPtr(StorageLib.sload));
         fifth = compress(fifth, 0x55, intoPtr(StorageLib.sstore));
+        fifth = compress(fifth, 0x59, intoPtr(MemoryLib.msize));
 
         fifth = compress(fifth, 0x5a, intoPtr(Builtins._gas));
         ops.unsafe_set(5, fifth);
@@ -212,7 +214,7 @@ library EvmLib {
 
         // stack capacity unlikely to surpass 32 words
         Stack stack = StackLib.newStack(stackSizeHint);
-        
+
         // creates a storage map
         Storage store = StorageLib.newStorage(storageSizeHint);
 
@@ -270,7 +272,7 @@ library EvmLib {
                     } else {
                         // pc, 0x58
                         stack = stack.push(i, 0);
-                    } 
+                    }
                 } else if (op == 0x38) {
                     // codesize
                     stack = stack.push(bcodeLen, 0);
@@ -321,11 +323,11 @@ library EvmLib {
             pop(
                 staticcall(
                     gas(), // pass gas
-                    0x04,  // call identity precompile address 
+                    0x04,  // call identity precompile address
                     add(start, offset), // arg offset == pointer to calldata
                     size,  // arg size
                     add(and(mem, ptr_mask), destOffset), // set return buffer to memory ptr + destination offset
-                    size   // identity just returns the bytes of the input so equal to argsize 
+                    size   // identity just returns the bytes of the input so equal to argsize
                 )
             )
         }
